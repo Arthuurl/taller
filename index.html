@@ -1,0 +1,892 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Taller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+:root{--bg:#E6EAEE;--tinta:#1B2733;--panel:#fff;--linea:#CBD3DB;--suave:#5B6875;--amar:#F2B705;--verde:#2E8B57;--rojo:#C8423B;--azul:#2F5D8A}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 Barlow,system-ui,sans-serif;color:var(--tinta);background:var(--bg)}
+h1,h2,h3{font-family:"Barlow Condensed",Barlow,sans-serif;font-weight:600;line-height:1.1;margin:0 0 .4em}
+h1{font-size:2rem}h2{font-size:1.45rem}h3{font-size:1.2rem}
+p{margin:.3em 0}
+.suave{color:var(--suave);font-size:.92rem}
+header#top{background:var(--tinta);color:#fff;position:sticky;top:0;z-index:5}
+header#top::after{content:"";display:block;height:6px;background:repeating-linear-gradient(-45deg,var(--amar) 0 12px,var(--tinta) 12px 24px)}
+.barra{display:flex;align-items:center;gap:6px 10px;padding:10px 16px;max-width:1100px;margin:auto;flex-wrap:wrap}
+.logo{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-size:1.4rem;font-weight:700;margin-right:auto;line-height:1.1}
+.logo small{display:block;font:400 .8rem Barlow,system-ui,sans-serif;color:#AEB9C4}
+nav{display:flex;flex-wrap:wrap;gap:2px}
+nav button{background:none;border:0;color:#C9D2DB;font:500 .95rem Barlow,system-ui,sans-serif;padding:8px 10px;border-radius:4px;cursor:pointer}
+nav button:hover{color:#fff}
+nav button[aria-current=page]{color:#fff;box-shadow:inset 0 -3px var(--amar)}
+main{max-width:1100px;margin:auto;padding:22px 16px 70px}
+.panel{background:var(--panel);border:1px solid var(--linea);border-radius:6px;padding:16px}
+.btn{font:600 .95rem Barlow,system-ui,sans-serif;border-radius:4px;padding:8px 14px;border:1px solid transparent;cursor:pointer;min-height:42px}
+.pri{background:var(--amar);color:var(--tinta)}
+.sec{background:#fff;border-color:var(--linea);color:var(--tinta)}
+.ok{background:var(--verde);color:#fff}
+.peligro{background:#fff;border-color:var(--rojo);color:var(--rojo)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.lnk{background:none;border:0;color:var(--azul);font:inherit;text-decoration:underline;cursor:pointer;padding:0}
+:focus-visible{outline:3px solid var(--azul);outline-offset:2px}
+label{display:block;font-size:.85rem;color:var(--suave)}
+label>input,label>select,label>textarea{margin-top:3px}
+input,select,textarea{width:100%;font:inherit;font-size:1rem;padding:8px 10px;border:1px solid var(--linea);border-radius:4px;background:#fff;color:var(--tinta)}
+input[type=color]{padding:2px;height:42px}
+input[type=checkbox]{width:auto}
+fieldset{border:1px solid var(--linea);border-radius:4px;margin:10px 0;padding:8px 10px}
+legend{font-size:.85rem;color:var(--suave);padding:0 4px}
+.chk{display:inline-flex;align-items:center;gap:6px;margin:4px 14px 4px 0;color:var(--tinta);font-size:.95rem}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));margin:10px 0}
+.dos{display:grid;gap:16px;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);align-items:start}
+.lista{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}
+.pila>*+*{margin-top:12px}
+.fila{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.entre{justify-content:space-between}
+.cab{justify-content:space-between;margin-bottom:14px}
+.cab h1{margin:0}
+@media (max-width:760px){.dos{grid-template-columns:1fr}h1{font-size:1.7rem}.tareas-primero>section:last-child{order:-1}}
+.placa{display:inline-flex;border:2px solid var(--tinta);border-radius:4px;background:#fff;font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-weight:700;font-size:1.25rem;letter-spacing:.08em;overflow:hidden;white-space:nowrap}
+.placa::before{content:"E";background:#1D4FA3;color:#fff;font:600 .7rem Barlow,system-ui,sans-serif;padding:10px 4px 0}
+.placa span{padding:0 9px}
+.escena{background:linear-gradient(#F5F7F9 70%,#D9E0E6);border-radius:4px;padding:6px 10px 0}
+.coche-svg{width:100%;height:auto;display:block}
+.rueda{transform-box:fill-box;transform-origin:center}
+.gira .rueda{animation:girar 1.1s linear infinite}
+@keyframes girar{to{transform:rotate(360deg)}}
+.tarjeta{text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%}
+.tarjeta:hover{border-color:var(--tinta)}
+.estado{display:inline-block;font-size:.8rem;font-weight:600;padding:1px 9px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
+.e-pendiente{color:var(--suave)}.e-en_curso{color:var(--azul)}.e-a_medias{color:#A06A00}
+.e-finalizada{color:var(--verde)}.e-abierta{color:var(--azul)}.e-cancelada{color:var(--rojo)}
+.barra-prog{height:6px;background:#DDE3E9;border-radius:3px;overflow:hidden;margin:8px 0 4px}
+.barra-prog i{display:block;height:100%;background:var(--verde)}
+.tarea{border:1px solid var(--linea);border-radius:6px;padding:16px 14px 14px;background:#fff;position:relative}
+.tarea.run{border-color:var(--tinta)}
+.tarea.run::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;border-radius:5px 5px 0 0;background:repeating-linear-gradient(-45deg,var(--amar) 0 10px,var(--tinta) 10px 20px);background-size:28.28px 28.28px;animation:mover 1s linear infinite}
+@keyframes mover{to{background-position:28.28px 0}}
+.cd{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-weight:700;font-size:2.6rem;font-variant-numeric:tabular-nums;line-height:1;margin-top:4px}
+.cd.neg{color:var(--rojo)}
+.derecha{text-align:right}
+.nota-relevo{background:#FFF6D6;border-left:4px solid var(--amar);padding:6px 10px;margin-top:8px;font-size:.92rem}
+.ck-item{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--linea)}
+.ck-item .nota{grid-column:1/-1}
+.ck-item .nota input{padding:5px 8px;font-size:.92rem}
+.seg{display:inline-flex;border:1px solid var(--linea);border-radius:4px;overflow:hidden}
+.seg label{position:relative;margin:0;cursor:pointer;color:var(--tinta)}
+.seg label+label{border-left:1px solid var(--linea)}
+.seg input{position:absolute;opacity:0;width:1px;height:1px}
+.seg span{display:block;padding:7px 12px;font-weight:500}
+.seg input:checked+span{background:var(--tinta);color:#fff}
+.seg input[value=revisar]:checked+span{background:#A06A00}
+.seg input:focus-visible+span{outline:3px solid var(--azul);outline-offset:-3px}
+.sello{border:1px dashed var(--linea);border-radius:4px;padding:8px 12px;background:#F7F9FA;font-size:.92rem}
+.sello strong{font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--linea);vertical-align:top}
+th{font-weight:600;color:var(--suave)}
+.tabla{overflow-x:auto}
+.vacio{text-align:center;padding:40px 16px}
+.login{max-width:400px;margin:8vh auto}
+.login h1{font-size:2.6rem}
+dialog{border:0;border-radius:8px;padding:0;max-width:520px;width:calc(100% - 24px);color:var(--tinta)}
+dialog::backdrop{background:rgba(27,39,51,.55)}
+.dlg{padding:18px}
+.acc{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--tinta);color:#fff;padding:10px 16px;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;z-index:20}
+#toast.ver{opacity:1}
+#toast.mal{background:var(--rojo)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header id="top" hidden><div class="barra"><div class="logo" id="logo"></div><nav id="nav"></nav></div></header>
+<main id="app"></main>
+<dialog id="dlg"></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ═════════ utilidades ═════════ */
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const app = html => { $('#app').innerHTML = html; window.scrollTo({top:0}); };
+const on = (sel, ev, fn) => document.querySelectorAll('#app ' + sel).forEach(el => el.addEventListener(ev, fn));
+const fmtFecha = ts => ts ? new Date(ts * 1000).toLocaleString('es-ES', {dateStyle:'short', timeStyle:'short'}) : '';
+const fmtMin = s => { const m = Math.round(s / 60); return m >= 60 ? `${Math.floor(m/60)} h ${m%60 ? m%60 + ' min' : ''}`.trim() : `${m} min`; };
+function fmtCD(r){
+  const neg = r < 0; let s = Math.abs(Math.round(r));
+  const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
+  const t = (h ? h + ':' + String(m).padStart(2,'0') : m) + ':' + String(x).padStart(2,'0');
+  return (neg ? '−' : '') + t;
+}
+let toastT;
+function toast(msg, mal=false){
+  const t = $('#toast'); t.textContent = msg; t.className = 'ver' + (mal ? ' mal' : '');
+  clearTimeout(toastT); toastT = setTimeout(() => t.className = '', 3500);
+}
+const ETQ = {pendiente:'Pendiente', en_curso:'En curso', a_medias:'A medias', finalizada:'Finalizada',
+             abierta:'Abierta', cancelada:'Cancelada', todas:'Todas'};
+const badge = e => `<span class="estado e-${esc(e)}">${ETQ[e] || esc(e)}</span>`;
+const CK_ETQ = {ok:'OK', revisar:'Revisar', na:'N/A'};
+
+/* ═════════ datos (Supabase) ═════════ */
+const CFG = window.TALLER_CONFIG || {};
+const CONFIGURADO = CFG.SUPABASE_URL && !CFG.SUPABASE_URL.includes('TU-PROYECTO') && CFG.SUPABASE_ANON_KEY && !CFG.SUPABASE_ANON_KEY.includes('PEGA');
+const sb = CONFIGURADO ? supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null;
+const DOMINIO = CFG.DOMINIO_USUARIOS || 'taller.app';
+const aEmail = u => { u = (u || '').trim().toLowerCase(); return u.includes('@') ? u : u + '@' + DOMINIO; };
+const MENSAJES = [
+  [/Invalid login credentials/i, 'Usuario o contraseña incorrectos'],
+  [/already registered|already been registered/i, 'Ese usuario ya existe'],
+  [/Password should be at least/i, 'La contraseña debe tener al menos 6 caracteres'],
+  [/Email address .* is invalid|invalid format/i, 'Usuario no válido: usa letras, números, punto o guion'],
+  [/Email not confirmed/i, 'Falta desactivar "Confirm email" en Supabase (mira la guía)'],
+  [/Signups not allowed/i, 'Falta activar el registro de usuarios en Supabase (mira la guía)'],
+  [/JWT expired|invalid JWT/i, 'Tu sesión ha caducado. Vuelve a entrar'],
+  [/Failed to fetch|NetworkError/i, 'Sin conexión con la base de datos'],
+  [/rate limit/i, 'Demasiados intentos. Espera un momento'],
+];
+function traducir(m){ m = m || 'Error desconocido'; for (const [re, t] of MENSAJES) if (re.test(m)) return t; return m; }
+async function ok(promesa){
+  const {data, error} = await promesa;
+  if (error){
+    if (/JWT expired|invalid JWT/i.test(error.message)) salir(false);
+    throw new Error(traducir(error.message));
+  }
+  return data;
+}
+const rpc = (fn, args) => ok(sb.rpc(fn, args));
+const ts = v => v ? Date.parse(v) / 1000 : null;
+let OFFSET = 0;
+const srvAhora = () => (Date.now() + OFFSET) / 1000;
+let NOMBRES = {};
+async function cargarNombres(){
+  const ps = await ok(sb.from('perfiles').select('id,nombre'));
+  NOMBRES = Object.fromEntries(ps.map(p => [p.id, p.nombre]));
+}
+const nom = id => NOMBRES[id] || '—';
+const uno1 = x => Array.isArray(x) ? (x[0] || null) : x;
+
+function normTarea(t){
+  const ahora = srvAhora();
+  const ses = t.tarea_sesiones || [];
+  const consumido = Number(t.seg_consumidos) + (t.en_marcha_desde ? ahora - ts(t.en_marcha_desde) : 0);
+  const rel = ses.filter(x => x.motivo === 'fin_turno').sort((a, b) => ts(b.fin) - ts(a.fin))[0];
+  return {
+    id: t.id, orden_id: t.orden_id, titulo: t.titulo, descripcion: t.descripcion, estado: t.estado, pos: t.pos,
+    seg_asignados: t.seg_asignados, consumido: Math.round(consumido), restante: Math.round(t.seg_asignados - consumido),
+    en_marcha: !!t.en_marcha_desde, finalizada: ts(t.finalizada),
+    mecanicos: (t.tarea_mecanicos || []).map(m => ({id: m.mecanico_id, nombre: nom(m.mecanico_id)})).sort((a, b) => a.nombre.localeCompare(b.nombre)),
+    activos: ses.filter(x => !x.fin).map(x => ({id: x.mecanico_id, nombre: nom(x.mecanico_id)})),
+    relevo: rel ? {de: nom(rel.mecanico_id), para: rel.relevo_id ? nom(rel.relevo_id) : null, nota: rel.nota, fin: ts(rel.fin)} : null,
+    tiene_sesiones: ses.length > 0,
+  };
+}
+function normOrden(o){
+  const tareas = (o.tareas || []).map(normTarea).sort((a, b) => a.pos - b.pos || a.id - b.id);
+  const ck = uno1(o.checklist);
+  return {
+    id: o.id, estado: o.estado, tipo_revision: o.tipo_revision, tipo_checklist: o.tipo_checklist, notas: o.notas,
+    creado: ts(o.creado), cerrado: ts(o.cerrado), coche: uno1(o.coche),
+    checklist: ck ? {creado: ts(ck.creado), realizado_por: nom(ck.realizado_por), modificado: ts(ck.modificado),
+                     modificado_por: ck.modificado_por ? nom(ck.modificado_por) : null, datos: ck.datos} : null,
+    tareas, seg_total: tareas.reduce((a, t) => a + t.seg_asignados, 0),
+    n_tareas: tareas.length, n_finalizadas: tareas.filter(t => t.estado === 'finalizada').length,
+  };
+}
+const SEL_ORDEN = '*, coche:coches(*), checklist:checklists(*), tareas(*, tarea_mecanicos(mecanico_id), tarea_sesiones(id,mecanico_id,inicio,fin,motivo,nota,relevo_id))';
+
+const DB = {
+  async ordenes(estado){
+    let q = sb.from('ordenes').select(SEL_ORDEN).order('creado', {ascending: false}).limit(200);
+    if (estado !== 'todas') q = q.eq('estado', estado);
+    return (await ok(q)).map(normOrden);
+  },
+  async orden(id){
+    const o = await ok(sb.from('ordenes').select(SEL_ORDEN).eq('id', id).maybeSingle());
+    if (!o) throw new Error(yo?.rol === 'admin' ? 'Orden no encontrada' : 'Este coche no está asignado a ti');
+    return normOrden(o);
+  },
+  async mecanicos(){
+    const r = await ok(sb.from('perfiles').select('id,nombre,usuario,activo,creado').eq('rol', 'mecanico').order('activo', {ascending: false}).order('nombre'));
+    return r.map(m => ({...m, creado: ts(m.creado)}));
+  },
+  async companeros(){
+    return ok(sb.from('perfiles').select('id,nombre').eq('rol', 'mecanico').eq('activo', true).neq('id', yo.id).order('nombre'));
+  },
+  async coches(){
+    const r = await ok(sb.from('coches').select('*, ordenes(count)').order('creado', {ascending: false}));
+    return r.map(c => ({...c, n_ordenes: c.ordenes?.[0]?.count ?? 0}));
+  },
+  async crearMecanico(b){
+    if (!/^[a-z0-9._-]{3,40}$/.test((b.usuario || '').trim().toLowerCase())) throw new Error('El usuario debe tener 3-40 caracteres: letras, números, punto o guion');
+    if (!b.password || b.password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres');
+    // cliente aparte para no cerrar la sesión del administrador
+    const aux = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY,
+      {auth: {persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'taller-aux'}});
+    const d = await ok(aux.auth.signUp({email: aEmail(b.usuario), password: b.password}));
+    if (!d.user || (d.user.identities && d.user.identities.length === 0)) throw new Error('Ese usuario ya existe');
+    await rpc('vincular_mecanico', {p_user: d.user.id, p_nombre: b.nombre});
+    if (!b.activo) await rpc('editar_mecanico', {p_id: d.user.id, p_nombre: b.nombre, p_activo: false, p_password: null});
+  },
+};
+
+const accion = fn => async e => { e.preventDefault(); const b = e.currentTarget; b.disabled = true;
+  try { await fn(e, b); } catch(x){ toast(x.message, true); } finally { if (b.isConnected) b.disabled = false; } };
+
+let yo = null, PLANT = null;
+const st = {refresh:null, editing:false};
+
+/* ═════════ coche ilustrado ═════════ */
+const CARROCERIAS = {berlina:'Berlina', hatchback:'Compacto', familiar:'Familiar', suv:'SUV', coupe:'Coupé', furgoneta:'Furgoneta', pickup:'Pick-up'};
+const FORMAS = {
+  berlina:{b:'M18 80V66Q20 58 34 56L70 54L92 36Q98 32 108 32H150Q160 32 168 40L182 54L212 58Q224 60 224 70V80Z',
+    v:['M96 38L108 36H126V53L80 54Z','M132 36H150Q158 37 164 42L176 53H132Z'], l:'M24 66H216', f:[212,61], p:[19,61], r:[62,182]},
+  hatchback:{b:'M20 80V64Q22 57 36 55L66 53L88 34Q94 30 104 30H168Q178 30 182 40L190 56Q204 58 206 68V80Z',
+    v:['M92 37L104 35H128V52L76 53Z','M134 35H166Q174 36 176 42L180 52H134Z'], l:'M26 64H200', f:[195,60], p:[21,60], r:[60,170]},
+  familiar:{b:'M16 80V64Q18 57 32 55L66 53L88 35Q94 31 104 31H196Q206 31 208 40L212 56Q224 58 224 68V80Z',
+    v:['M92 38L104 36H134V52L76 53Z','M140 36H160V52H140Z','M166 36H200Q204 37 205 42L206 52H166Z'], l:'M22 64H218', f:[212,60], p:[17,60], r:[58,184]},
+  suv:{b:'M16 82V62Q18 52 32 50L62 48L80 26Q86 22 96 22H186Q198 22 202 32L208 48Q222 50 224 62V82Z',
+    v:['M84 30L96 28H128V46L70 47Z','M134 28H182Q192 28 196 36L200 46H134Z'], l:'M22 60H218', f:[212,55], p:[17,55], r:[58,184], rr:16},
+  coupe:{b:'M16 80V66Q18 59 34 57L78 55L104 38Q112 34 122 34H150Q162 35 174 44L190 55Q222 58 224 70V80Z',
+    v:['M108 40L122 38H138V53L88 54Z','M144 38H152Q162 40 170 46L178 53H144Z'], l:'M22 68H218', f:[212,63], p:[17,63], r:[62,186]},
+  furgoneta:{b:'M14 82V56Q16 48 26 46L44 44L60 18Q64 12 74 12H214Q226 12 226 24V82Z',
+    v:['M64 20L76 18H100V42L50 43Z'], l:'M20 58H222M108 16V78', f:[15,50], p:[220,30], r:[56,190], rr:15},
+  pickup:{b:'M14 80V62Q16 54 28 52L58 50L76 30Q82 26 92 26H136Q142 26 142 32V50H226V80Z',
+    v:['M80 33L92 31H108V47L66 48Z','M114 31H136V47H114Z'], l:'M20 62H222', f:[15,56], p:[220,54], r:[56,190], rr:15},
+};
+function tono(hex, f){
+  const n = parseInt(hex.slice(1), 16), c = [n>>16, n>>8&255, n&255];
+  return '#' + c.map(v => Math.max(0, Math.min(255, Math.round(f < 0 ? v*(1+f) : v+(255-v)*f)))
+    .toString(16).padStart(2,'0')).join('');
+}
+function cocheSVG(c, run=false){
+  const f = FORMAS[c.carroceria] || FORMAS.berlina;
+  const col = /^#[0-9a-f]{6}$/i.test(c.color || '') ? c.color : '#3A6EA5';
+  const rr = f.rr || 14, y = 80;
+  const rueda = x => `<circle cx="${x}" cy="${y}" r="${rr+3}" fill="#1B2733"/>
+    <g class="rueda"><circle cx="${x}" cy="${y}" r="${rr}" fill="#2B333C"/><circle cx="${x}" cy="${y}" r="${rr*.52}" fill="#C9D1D9"/>
+    <path d="M${x-rr*.46} ${y}H${x+rr*.46}M${x} ${y-rr*.46}V${y+rr*.46}" stroke="#6F7C89" stroke-width="2.2"/></g>`;
+  return `<svg class="coche-svg ${run ? 'gira' : ''}" viewBox="0 0 240 104" role="img" aria-label="${esc((c.marca||'') + ' ' + (c.modelo||''))}">
+    <ellipse cx="120" cy="${y+rr+3}" rx="110" ry="4.5" fill="#1B2733" opacity=".16"/>
+    <path d="${f.b}" fill="${col}" stroke="${tono(col,-.35)}" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="${f.l}" stroke="${tono(col,-.18)}" stroke-width="1.2" fill="none"/>
+    ${f.v.map(p => `<path d="${p}" fill="#253545" opacity=".88"/><path d="${p}" fill="none" stroke="${tono(col,.45)}" stroke-width="1"/>`).join('')}
+    <rect x="${f.f[0]}" y="${f.f[1]}" width="9" height="4.5" rx="2" fill="#FFF1BD" stroke="${tono(col,-.35)}" stroke-width=".6"/>
+    <rect x="${f.p[0]}" y="${f.p[1]}" width="5" height="6" rx="1" fill="#D9453B"/>
+    ${rueda(f.r[0])}${rueda(f.r[1])}
+  </svg>`;
+}
+const placa = m => `<span class="placa"><span>${esc(m)}</span></span>`;
+function datosCoche(c){
+  return [c.anio, CARROCERIAS[c.carroceria], c.km ? Number(c.km).toLocaleString('es-ES') + ' km' : ''].filter(Boolean).map(esc).join(', ');
+}
+function fichaCoche(c, run=false){
+  return `<div class="escena">${cocheSVG(c, run)}</div>
+  <div class="fila entre" style="margin-top:10px;align-items:flex-start">
+    <div><h2 style="margin:0">${esc(c.marca)} ${esc(c.modelo)}</h2><div class="suave">${datosCoche(c)}</div></div>
+    ${placa(c.matricula)}
+  </div>`;
+}
+
+/* ═════════ diálogo ═════════ */
+function dialogo(html, okTxt, onOk, okClase='pri'){
+  const d = $('#dlg');
+  d.innerHTML = `<div class="dlg">${html}<div class="acc"><button type="button" class="btn sec" data-x>Cancelar</button>
+    <button type="button" class="btn ${okClase}" data-ok>${esc(okTxt)}</button></div></div>`;
+  st.editing = true;
+  d.onclose = () => { st.editing = false; };
+  d.querySelector('[data-x]').onclick = () => d.close();
+  d.querySelector('[data-ok]').onclick = async e => {
+    e.currentTarget.disabled = true;
+    try { await onOk(d); d.close(); } catch(x){ toast(x.message, true); e.currentTarget.disabled = false; }
+  };
+  d.showModal();
+}
+
+/* ═════════ cabecera y sesión ═════════ */
+const MENU_ADMIN = [['ordenes','Órdenes',()=>vOrdenes()],['nueva','Nueva orden',()=>vNuevaOrden()],
+  ['mecanicos','Mecánicos',()=>vMecanicos()],['coches','Coches',()=>vCoches()],['historico','Histórico',()=>vHistorico()]];
+const MENU_MEC = [['inicio','Mis coches',()=>mInicio()]];
+function cabecera(){
+  $('#top').hidden = false;
+  $('#logo').innerHTML = `${esc(yo.taller)}<small>${esc(yo.nombre)}, ${yo.rol === 'admin' ? 'administrador' : 'mecánico'}</small>`;
+  const menu = yo.rol === 'admin' ? MENU_ADMIN : MENU_MEC;
+  $('#nav').innerHTML = menu.map(([k,t]) => `<button data-k="${k}">${t}</button>`).join('') + `<button data-k="salir">Salir</button>`;
+  $('#nav').querySelectorAll('button').forEach(b => b.onclick = () => {
+    if (b.dataset.k === 'salir') return salir(true);
+    menu.find(m => m[0] === b.dataset.k)[2]().catch(x => toast(x.message, true));
+  });
+}
+function marcar(k){
+  $('#nav').querySelectorAll('button').forEach(b => b.dataset.k === k ? b.setAttribute('aria-current','page') : b.removeAttribute('aria-current'));
+}
+
+async function salir(avisar){
+  try { await sb.auth.signOut({scope: 'local'}); } catch(e){}
+  yo = null; st.refresh = null;
+  $('#top').hidden = true; vLogin();
+}
+
+function vLogin(registro=false){
+  st.refresh = null;
+  app(`<div class="login panel">
+    <h1>Taller</h1>
+    <p class="suave">${registro ? 'Crea tu taller. Tú serás el administrador.' : 'Entra con tu usuario.'}</p>
+    <form id="f" class="pila" style="margin-top:14px">
+      ${registro ? `<label>Nombre del taller<input name="taller" required></label>
+                    <label>Tu nombre<input name="nombre" required></label>` : ''}
+      <label>Usuario<input name="usuario" autocomplete="username" autocapitalize="none" required></label>
+      <label>Contraseña<input name="password" type="password" autocomplete="${registro ? 'new-password' : 'current-password'}" required minlength="${registro ? 6 : 1}"></label>
+      <button class="btn pri" style="width:100%">${registro ? 'Crear taller' : 'Entrar'}</button>
+    </form>
+    <p style="margin-top:14px"><button class="lnk" id="alt">${registro ? 'Ya tengo cuenta' : 'Registrar un taller nuevo'}</button></p>
+  </div>`);
+  $('#alt').onclick = () => vLogin(!registro);
+  $('#f').onsubmit = async e => {
+    e.preventDefault();
+    const b = Object.fromEntries(new FormData(e.target));
+    try {
+      const u = (b.usuario || '').trim().toLowerCase();
+      if (registro){
+        if (!/^[a-z0-9._-]{3,40}$/.test(u)) throw new Error('El usuario debe tener 3-40 caracteres: letras, números, punto o guion');
+        const d = await ok(sb.auth.signUp({email: aEmail(u), password: b.password}));
+        if (!d.session) throw new Error('Falta desactivar "Confirm email" en Supabase (mira la guía)');
+        try { await rpc('crear_taller', {p_taller: b.taller, p_nombre: b.nombre}); }
+        catch(x){ await sb.auth.signOut({scope: 'local'}); throw x; }
+      } else {
+        await ok(sb.auth.signInWithPassword({email: aEmail(u), password: b.password}));
+      }
+      await arrancar();
+    } catch(x){ toast(x.message, true); }
+  };
+}
+
+async function arrancar(){
+  const {data: {user}} = await sb.auth.getUser();
+  if (!user) throw new Error('Inicia sesión');
+  const p = await ok(sb.from('perfiles').select('id,nombre,usuario,rol,taller_id').eq('id', user.id).maybeSingle());
+  if (!p){ await salir(false); throw new Error('Tu usuario está desactivado o no pertenece a ningún taller'); }
+  const t = await ok(sb.from('talleres').select('nombre').eq('id', p.taller_id).single());
+  yo = {...p, taller: t.nombre};
+  const [ahora, pl] = await Promise.all([rpc('ahora'), rpc('plantillas'), cargarNombres()]);
+  OFFSET = Date.parse(ahora) - Date.now();
+  PLANT = pl;
+  cabecera();
+  yo.rol === 'admin' ? await vOrdenes() : await mInicio();
+}
+
+/* ═════════ checklist ═════════ */
+function formChecklist(tipo, datos){
+  const it = datos?.items || {};
+  return `<div class="ck">${PLANT[tipo].map(p => `
+    <div class="ck-item" data-id="${p.id}">
+      <div>${esc(p.texto)}</div>
+      <div class="seg" role="radiogroup" aria-label="${esc(p.texto)}">${Object.entries(CK_ETQ).map(([v,t]) =>
+        `<label><input type="radio" name="ck-${p.id}" value="${v}" ${it[p.id]?.estado === v ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
+      <div class="nota"><input placeholder="Nota (opcional)" aria-label="Nota sobre ${esc(p.texto)}" value="${esc(it[p.id]?.nota || '')}"></div>
+    </div>`).join('')}
+    <div class="grid">
+      <label>Kilómetros<input type="number" min="0" name="ck-km" value="${esc(datos?.km ?? '')}"></label>
+    </div>
+    <label>Observaciones<textarea name="ck-obs" rows="3">${esc(datos?.observaciones || '')}</textarea></label>
+  </div>`;
+}
+function leerChecklist(root){
+  const items = {};
+  for (const row of root.querySelectorAll('.ck-item')){
+    const sel = row.querySelector('input[type=radio]:checked');
+    if (!sel){ row.scrollIntoView({block:'center'}); throw new Error('Falta revisar: ' + row.firstElementChild.textContent); }
+    items[row.dataset.id] = {estado: sel.value, nota: row.querySelector('.nota input').value};
+  }
+  const km = root.querySelector('[name=ck-km]').value;
+  return {items, km: km ? +km : null, observaciones: root.querySelector('[name=ck-obs]').value};
+}
+function selloChecklist(ck){
+  return `<div class="sello">
+    <div>Realizado el <strong>${fmtFecha(ck.creado)}</strong> por ${esc(ck.realizado_por)}</div>
+    ${ck.modificado ? `<div>Modificado el <strong>${fmtFecha(ck.modificado)}</strong> por ${esc(ck.modificado_por)}</div>` : ''}
+  </div>`;
+}
+function verChecklist(tipo, ck){
+  const it = ck.datos.items;
+  const revisar = PLANT[tipo].filter(p => it[p.id]?.estado === 'revisar');
+  return `${selloChecklist(ck)}
+    ${revisar.length ? `<p style="margin-top:10px"><strong>${revisar.length} punto${revisar.length>1?'s':''} a revisar:</strong> ${revisar.map(p => esc(p.texto)).join(', ')}</p>` : '<p style="margin-top:10px">Todo correcto.</p>'}
+    <details style="margin-top:8px"><summary>Ver checklist completo</summary>
+      <table><tbody>${PLANT[tipo].map(p => `<tr><td>${esc(p.texto)}</td><td>${CK_ETQ[it[p.id]?.estado] || ''}</td><td class="suave">${esc(it[p.id]?.nota || '')}</td></tr>`).join('')}</tbody></table>
+      ${ck.datos.km ? `<p>Kilómetros: ${Number(ck.datos.km).toLocaleString('es-ES')}</p>` : ''}
+      ${ck.datos.observaciones ? `<p>Observaciones: ${esc(ck.datos.observaciones)}</p>` : ''}
+    </details>`;
+}
+
+/* ═════════ tareas ═════════ */
+function tareaHTML(t, modo, ckHecho){
+  const run = t.en_marcha;
+  const mia = modo === 'mec' && t.activos.some(a => a.id === yo.id);
+  let acc = '';
+  if (modo === 'mec' && t.estado !== 'finalizada'){
+    acc = mia
+      ? `<button class="btn ok" data-fin="${t.id}">Finalizar tarea</button><button class="btn sec" data-turno="${t.id}">Fin de turno</button>`
+      : `<button class="btn pri" data-empezar="${t.id}" ${ckHecho ? '' : 'disabled'}>${run ? 'Unirme a la tarea' : t.estado === 'a_medias' ? 'Continuar tarea' : 'Empezar tarea'}</button>
+         ${ckHecho ? '' : '<span class="suave">Haz primero el checklist</span>'}`;
+  }
+  if (modo === 'admin'){
+    acc = `<button class="btn sec" data-editar="${t.id}">Editar</button>` +
+          (!t.tiene_sesiones ? `<button class="btn peligro" data-borrar="${t.id}">Eliminar</button>` : '');
+  }
+  const r = t.relevo;
+  return `<article class="tarea ${run ? 'run' : ''}">
+    <div class="fila entre" style="align-items:flex-start;flex-wrap:nowrap">
+      <div style="min-width:0">
+        <h3>${esc(t.titulo)}</h3>
+        ${t.descripcion ? `<p>${esc(t.descripcion)}</p>` : ''}
+        <p class="suave">Asignada a ${esc(t.mecanicos.map(m => m.nombre).join(', ') || 'nadie')}</p>
+        ${run ? `<p><strong>Trabajando:</strong> ${esc(t.activos.map(a => a.nombre).join(', '))}</p>` : ''}
+        ${t.estado === 'finalizada' ? `<p class="suave">Terminada el ${fmtFecha(t.finalizada)}, tiempo real ${fmtMin(t.consumido)}</p>` : ''}
+      </div>
+      <div class="derecha">
+        ${badge(t.estado)}
+        ${t.estado === 'finalizada' ? '' : `<div class="cd" data-rest="${t.restante}" data-run="${run ? 1 : 0}" data-t="${Date.now()}">${fmtCD(t.restante)}</div>`}
+        <div class="suave">de ${fmtMin(t.seg_asignados)}</div>
+      </div>
+    </div>
+    ${r && t.estado !== 'finalizada' ? `<div class="nota-relevo">Relevo de ${esc(r.de)}${r.para ? ' para ' + esc(r.para) : ''}, ${fmtFecha(r.fin)}${r.nota ? ': ' + esc(r.nota) : ''}</div>` : ''}
+    ${acc ? `<div class="fila" style="margin-top:12px">${acc}</div>` : ''}
+  </article>`;
+}
+setInterval(() => {
+  document.querySelectorAll('.cd').forEach(el => {
+    const r = +el.dataset.rest - (el.dataset.run === '1' ? (Date.now() - +el.dataset.t) / 1000 : 0);
+    el.textContent = fmtCD(r); el.classList.toggle('neg', r < 0);
+  });
+}, 1000);
+setInterval(() => { if (st.refresh && !st.editing && !document.hidden) st.refresh().catch(() => {}); }, 15000);
+
+/* ═════════ ADMIN: órdenes ═════════ */
+function tarjetaOrden(o, destino){
+  const pct = o.n_tareas ? Math.round(o.n_finalizadas / o.n_tareas * 100) : 0;
+  const run = o.tareas.some(t => t.en_marcha);
+  return `<button class="panel tarjeta" data-${destino}="${o.id}">
+    <div class="escena">${cocheSVG(o.coche, run)}</div>
+    <div class="fila entre" style="margin-top:8px">${placa(o.coche.matricula)}${badge(o.estado)}</div>
+    <h3 style="margin:8px 0 0">${esc(o.coche.marca)} ${esc(o.coche.modelo)}</h3>
+    <div class="suave">${esc(o.tipo_revision)}, checklist ${o.tipo_checklist === 'basico' ? 'básico' : 'completo'}</div>
+    <div class="barra-prog"><i style="width:${pct}%"></i></div>
+    <div class="suave">${o.n_finalizadas} de ${o.n_tareas} tareas, ${fmtMin(o.seg_total)} en total</div>
+    <div class="suave">${o.checklist ? 'Checklist hecho' : 'Checklist pendiente'}${run ? ', trabajando ahora' : ''}</div>
+  </button>`;
+}
+
+async function vOrdenes(){
+  marcar('ordenes');
+  const filtro = st.filtro || 'abierta';
+  const os = await DB.ordenes(filtro);
+  app(`<div class="fila cab"><h1>Órdenes de trabajo</h1>
+    <div class="fila">${['abierta','finalizada','cancelada','todas'].map(e =>
+      `<button class="btn ${e === filtro ? 'pri' : 'sec'}" data-filtro="${e}">${ETQ[e]}${e==='abierta'||e==='finalizada'||e==='cancelada'?'s':''}</button>`).join('')}</div></div>
+    ${os.length ? `<div class="lista">${os.map(o => tarjetaOrden(o, 'orden')).join('')}</div>`
+      : `<div class="panel vacio"><p>No hay órdenes en esta lista.</p><button class="btn pri" id="ir-nueva">Crear orden</button></div>`}`);
+  on('[data-filtro]', 'click', e => { st.filtro = e.currentTarget.dataset.filtro; vOrdenes(); });
+  on('[data-orden]', 'click', e => vOrden(+e.currentTarget.dataset.orden));
+  $('#ir-nueva')?.addEventListener('click', vNuevaOrden);
+  st.refresh = vOrdenes;
+}
+
+async function vOrden(id){
+  marcar('ordenes');
+  const [o, mecs] = await Promise.all([DB.orden(id), DB.mecanicos()]);
+  const run = o.tareas.some(t => t.en_marcha);
+  app(`<p><button class="lnk" id="volver">Volver a órdenes</button></p>
+  <div class="dos">
+    <section class="pila">
+      <div class="panel">${fichaCoche(o.coche, run)}</div>
+      <div class="panel">
+        <div class="fila entre"><h2 style="margin:0">Orden ${o.id}</h2>${badge(o.estado)}</div>
+        <label style="margin-top:10px">Tipo de revisión<input id="o-tipo" value="${esc(o.tipo_revision)}"></label>
+        <label style="margin-top:8px">Notas para el mecánico<textarea id="o-notas" rows="2">${esc(o.notas || '')}</textarea></label>
+        <p class="suave">Creada el ${fmtFecha(o.creado)}${o.cerrado ? `, cerrada el ${fmtFecha(o.cerrado)}` : ''}</p>
+        <p class="suave">Tiempo total asignado: ${fmtMin(o.seg_total)}</p>
+        <div class="fila" style="margin-top:10px">
+          <button class="btn sec" id="o-guardar">Guardar datos</button>
+          ${o.estado === 'abierta'
+            ? `<button class="btn ok" data-estado="finalizada">Cerrar orden</button><button class="btn peligro" data-estado="cancelada">Cancelar orden</button>`
+            : `<button class="btn sec" data-estado="abierta">Reabrir orden</button>`}
+        </div>
+      </div>
+    </section>
+    <section class="pila">
+      <div class="panel" id="ck-zona">
+        <div class="fila entre"><h2 style="margin:0">Checklist ${o.tipo_checklist === 'basico' ? 'básico' : 'completo'}</h2>
+          ${o.checklist ? '<button class="btn sec" id="ck-editar">Editar checklist</button>' : ''}</div>
+        <div id="ck-cuerpo" style="margin-top:10px">${o.checklist ? verChecklist(o.tipo_checklist, o.checklist)
+          : `<p>Pendiente. Lo hará el mecánico antes de empezar.</p><button class="btn sec" id="ck-hacer">Hacerlo yo</button>`}</div>
+      </div>
+      <div class="fila entre"><h2 style="margin:0">Reparaciones</h2><button class="btn pri" id="t-nueva">Añadir reparación</button></div>
+      ${o.tareas.map(t => tareaHTML(t, 'admin')).join('') || '<p>Sin reparaciones.</p>'}
+    </section>
+  </div>`);
+  $('#volver').onclick = () => vOrdenes();
+  $('#o-guardar').onclick = accion(async () => { await rpc('editar_orden', {p_id: id, p_tipo: $('#o-tipo').value, p_notas: $('#o-notas').value}); toast('Datos guardados'); });
+  on('[data-estado]', 'click', e => {
+    const est = e.currentTarget.dataset.estado;
+    const txt = {finalizada:'¿Cerrar la orden? Las tareas en marcha se detendrán.', cancelada:'¿Cancelar la orden? Las tareas en marcha se detendrán.', abierta:'¿Reabrir la orden?'}[est];
+    dialogo(`<h2>${est === 'abierta' ? 'Reabrir' : est === 'finalizada' ? 'Cerrar' : 'Cancelar'} orden</h2><p>${txt}</p>`, 'Confirmar',
+      async () => { await rpc('cambiar_estado_orden', {p_id: id, p_estado: est}); toast('Orden actualizada'); vOrden(id); }, est === 'cancelada' ? 'peligro' : 'pri');
+  });
+  const editarCk = (nuevo) => {
+    st.refresh = null;
+    $('#ck-cuerpo').innerHTML = `${o.checklist ? selloChecklist(o.checklist) : ''}${formChecklist(o.tipo_checklist, o.checklist?.datos)}
+      <div class="fila" style="margin-top:12px"><button class="btn pri" id="ck-guardar">Guardar checklist</button><button class="btn sec" id="ck-cancelar">Cancelar</button></div>`;
+    $('#ck-editar')?.remove();
+    $('#ck-cancelar').onclick = () => vOrden(id);
+    $('#ck-guardar').onclick = accion(async () => {
+      const b = leerChecklist($('#ck-cuerpo'));
+      await rpc(nuevo ? 'hacer_checklist' : 'modificar_checklist', {p_orden: id, p_datos: b});
+      toast(nuevo ? 'Checklist guardado' : 'Checklist modificado'); vOrden(id);
+    });
+  };
+  $('#ck-editar')?.addEventListener('click', () => editarCk(false));
+  $('#ck-hacer')?.addEventListener('click', () => editarCk(true));
+  const activos = mecs.filter(m => m.activo);
+  const dlgTarea = t => dialogo(`<h2>${t ? 'Editar reparación' : 'Nueva reparación'}</h2>
+    <div class="pila">
+      <label>Reparación<input id="d-tit" value="${esc(t?.titulo || '')}"></label>
+      <label>Detalle<input id="d-desc" value="${esc(t?.descripcion || '')}"></label>
+      <label>Minutos asignados<input id="d-min" type="number" min="1" value="${t ? Math.round(t.seg_asignados/60) : ''}"></label>
+      <fieldset><legend>Mecánicos (comparten el tiempo)</legend>
+        ${mecs.filter(m => m.activo || t?.mecanicos.some(x => x.id === m.id)).map(m => `<label class="chk"><input type="checkbox" value="${m.id}" ${t?.mecanicos.some(x => x.id === m.id) ? 'checked' : ''}> ${esc(m.nombre)}</label>`).join('') || 'Crea antes un mecánico.'}
+      </fieldset>
+      ${t?.tiene_sesiones ? '<p class="suave">El tiempo ya consumido se mantiene. Si cambias los minutos, el contador se recalcula.</p>' : ''}
+    </div>`, 'Guardar', async d => {
+      const body = {titulo: d.querySelector('#d-tit').value, descripcion: d.querySelector('#d-desc').value,
+        minutos: +d.querySelector('#d-min').value, mecanicos: [...d.querySelectorAll('fieldset input:checked')].map(x => x.value)};
+      if (!body.titulo || !body.minutos) throw new Error('Pon nombre y minutos');
+      await rpc('guardar_tarea', {p_id: t ? t.id : null, p_orden: id, p_titulo: body.titulo, p_descripcion: body.descripcion, p_minutos: body.minutos, p_mecanicos: body.mecanicos});
+      toast('Reparación guardada'); vOrden(id);
+    });
+  $('#t-nueva').onclick = () => dlgTarea(null);
+  on('[data-editar]', 'click', e => dlgTarea(o.tareas.find(t => t.id === +e.currentTarget.dataset.editar)));
+  on('[data-borrar]', 'click', e => {
+    const tid = +e.currentTarget.dataset.borrar;
+    dialogo('<h2>Eliminar reparación</h2><p>Se borrará de la orden.</p>', 'Eliminar', async () => {
+      await rpc('borrar_tarea', {p_id: tid}); toast('Reparación eliminada'); vOrden(id);
+    }, 'peligro');
+  });
+  st.refresh = () => vOrden(id);
+  // no refrescar mientras se escriben datos de la orden
+  ['#o-tipo','#o-notas'].forEach(s => $(s).addEventListener('input', () => st.refresh = null));
+}
+
+/* ═════════ ADMIN: nueva orden ═════════ */
+function camposCoche(c){
+  return `<div class="grid">
+    <label>Matrícula<input name="matricula" value="${esc(c.matricula || '')}" required></label>
+    <label>Marca<input name="marca" value="${esc(c.marca || '')}" required></label>
+    <label>Modelo<input name="modelo" value="${esc(c.modelo || '')}" required></label>
+    <label>Año<input name="anio" type="number" min="1900" max="2100" value="${esc(c.anio || '')}"></label>
+    <label>Kilómetros<input name="km" type="number" min="0" value="${esc(c.km ?? '')}"></label>
+    <label>Carrocería<select name="carroceria">${Object.entries(CARROCERIAS).map(([k,v]) => `<option value="${k}" ${c.carroceria === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+    <label>Color<input name="color" type="color" value="${esc(c.color || '#3A6EA5')}"></label>
+    <label>Bastidor (VIN)<input name="vin" maxlength="17" value="${esc(c.vin || '')}"></label>
+  </div>
+  <label>Notas del coche<input name="notas" value="${esc(c.notas || '')}"></label>`;
+}
+function leerCoche(root){
+  const g = n => root.querySelector(`[name=${n}]`).value.trim();
+  const c = {matricula:g('matricula'), marca:g('marca'), modelo:g('modelo'), anio:g('anio') ? +g('anio') : null,
+    km:g('km') ? +g('km') : null, carroceria:g('carroceria'), color:g('color'), vin:g('vin') || null, notas:g('notas') || null};
+  if (!c.matricula || !c.marca || !c.modelo) throw new Error('Pon matrícula, marca y modelo');
+  return c;
+}
+function enlazarPreview(root, prev){
+  const pintar = () => { try { const c = leerCocheParcial(root); prev.innerHTML = cocheSVG(c) +
+    `<div class="fila entre" style="padding:6px 0 10px"><strong>${esc(c.marca || 'Marca')} ${esc(c.modelo || 'modelo')}</strong>${c.matricula ? placa(c.matricula.toUpperCase()) : ''}</div>`; } catch(e){} };
+  root.addEventListener('input', pintar); pintar();
+}
+function leerCocheParcial(root){
+  const g = n => root.querySelector(`[name=${n}]`)?.value.trim() || '';
+  return {matricula:g('matricula'), marca:g('marca'), modelo:g('modelo'), carroceria:g('carroceria'), color:g('color')};
+}
+
+async function vNuevaOrden(){
+  marcar('nueva'); st.refresh = null;
+  const [coches, mecs] = await Promise.all([DB.coches(), DB.mecanicos()]);
+  const activos = mecs.filter(m => m.activo);
+  const filaTarea = () => `<div class="panel t-fila" style="margin-bottom:10px">
+    <div class="grid" style="margin-top:0">
+      <label>Reparación<input class="t-tit"></label>
+      <label>Minutos<input class="t-min" type="number" min="1"></label>
+    </div>
+    <label>Detalle<input class="t-desc"></label>
+    <fieldset><legend>Mecánicos (comparten el tiempo)</legend>
+      ${activos.map(m => `<label class="chk"><input type="checkbox" value="${m.id}"> ${esc(m.nombre)}</label>`).join('') || 'Primero crea un mecánico en la pestaña Mecánicos.'}
+    </fieldset>
+    <button class="btn sec t-quitar">Quitar</button>
+  </div>`;
+  app(`<h1>Nueva orden</h1>
+  <div class="dos">
+    <section class="panel">
+      <h2>Coche</h2>
+      <label>Coche<select id="n-sel"><option value="">Coche nuevo</option>
+        ${coches.map(c => `<option value="${c.id}">${esc(c.matricula)}, ${esc(c.marca)} ${esc(c.modelo)}</option>`).join('')}</select></label>
+      <div id="n-prev" class="escena" style="margin-top:12px"></div>
+      <div id="n-campos">${camposCoche({})}</div>
+    </section>
+    <section class="panel">
+      <h2>Trabajo</h2>
+      <div class="grid" style="margin-top:0">
+        <label>Tipo de revisión<input id="n-tipo" list="tipos"></label>
+        <label>Checklist<select id="n-ck"><option value="basico">Básico (${PLANT.basico.length} puntos)</option><option value="completo">Completo (${PLANT.completo.length} puntos)</option></select></label>
+      </div>
+      <datalist id="tipos"><option>Mantenimiento</option><option>Revisión oficial</option><option>Pre-ITV</option><option>Reparación</option><option>Diagnóstico</option><option>Neumáticos</option></datalist>
+      <label>Notas para el mecánico<textarea id="n-notas" rows="2"></textarea></label>
+      <h3 style="margin-top:16px">Reparaciones</h3>
+      <div id="n-tareas">${filaTarea()}</div>
+      <button class="btn sec" id="n-add">Añadir reparación</button>
+      <p style="margin-top:14px">Tiempo total: <strong id="n-total">0 min</strong></p>
+      <button class="btn pri" id="n-guardar">Crear orden</button>
+    </section>
+  </div>`);
+  const campos = $('#n-campos'), prev = $('#n-prev');
+  enlazarPreview(campos, prev);
+  $('#n-sel').onchange = e => {
+    const c = coches.find(x => x.id === +e.target.value);
+    campos.hidden = !!c;
+    if (c) prev.innerHTML = cocheSVG(c) + `<div class="fila entre" style="padding:6px 0 10px"><strong>${esc(c.marca)} ${esc(c.modelo)}</strong>${placa(c.matricula)}</div>`;
+    else campos.dispatchEvent(new Event('input'));
+  };
+  const total = () => $('#n-total').textContent = fmtMin([...document.querySelectorAll('.t-min')].reduce((a, i) => a + (+i.value || 0), 0) * 60);
+  const zona = $('#n-tareas');
+  zona.addEventListener('input', total);
+  zona.addEventListener('click', e => { if (e.target.classList.contains('t-quitar')){ e.target.closest('.t-fila').remove(); total(); } });
+  $('#n-add').onclick = () => zona.insertAdjacentHTML('beforeend', filaTarea());
+  $('#n-guardar').onclick = accion(async () => {
+    const body = {tipo_revision: $('#n-tipo').value.trim(), tipo_checklist: $('#n-ck').value, notas: $('#n-notas').value, tareas: []};
+    if (!body.tipo_revision) throw new Error('Indica el tipo de revisión');
+    const sel = +$('#n-sel').value;
+    sel ? body.coche_id = sel : body.coche = leerCoche(campos);
+    for (const f of zona.querySelectorAll('.t-fila')){
+      const t = {titulo: f.querySelector('.t-tit').value.trim(), descripcion: f.querySelector('.t-desc').value.trim(),
+        minutos: +f.querySelector('.t-min').value, mecanicos: [...f.querySelectorAll('fieldset input:checked')].map(x => x.value)};
+      if (!t.titulo && !t.minutos) continue;
+      if (!t.titulo || !t.minutos) throw new Error('Cada reparación necesita nombre y minutos');
+      if (!t.mecanicos.length) throw new Error(`Asigna al menos un mecánico a «${t.titulo}»`);
+      body.tareas.push(t);
+    }
+    if (!body.tareas.length) throw new Error('Añade al menos una reparación');
+    const nuevaId = await rpc('crear_orden', {p: body});
+    toast('Orden creada'); vOrden(nuevaId);
+  });
+}
+
+/* ═════════ ADMIN: mecánicos ═════════ */
+async function vMecanicos(){
+  marcar('mecanicos'); st.refresh = null;
+  const mecs = await DB.mecanicos();
+  app(`<div class="fila cab"><h1>Mecánicos</h1><button class="btn pri" id="m-nuevo">Nuevo mecánico</button></div>
+    ${mecs.length ? `<div class="panel tabla"><table>
+      <thead><tr><th>Nombre</th><th>Usuario</th><th>Estado</th><th>Alta</th><th></th></tr></thead>
+      <tbody>${mecs.map(m => `<tr><td>${esc(m.nombre)}</td><td>${esc(m.usuario)}</td>
+        <td>${m.activo ? 'Activo' : '<span class="suave">Desactivado</span>'}</td><td>${fmtFecha(m.creado)}</td>
+        <td class="derecha"><button class="btn sec" data-m="${m.id}">Editar</button></td></tr>`).join('')}</tbody></table></div>`
+    : '<div class="panel vacio"><p>Aún no hay mecánicos. Crea el primero para poder asignarle trabajo.</p></div>'}`);
+  const dlg = m => dialogo(`<h2>${m ? 'Editar mecánico' : 'Nuevo mecánico'}</h2>
+    <div class="pila">
+      <label>Nombre<input id="d-nom" value="${esc(m?.nombre || '')}"></label>
+      ${m ? `<p class="suave">Usuario: <strong>${esc(m.usuario)}</strong></p>` : '<label>Usuario<input id="d-usu" autocapitalize="none"></label>'}
+      <label>${m ? 'Nueva contraseña (déjala vacía para no cambiarla)' : 'Contraseña'}<input id="d-pw" type="password" autocomplete="new-password" minlength="6"></label>
+      <label class="chk"><input id="d-act" type="checkbox" ${!m || m.activo ? 'checked' : ''}> Activo (puede entrar y recibir trabajo)</label>
+    </div>`, 'Guardar', async d => {
+      const b = {nombre: d.querySelector('#d-nom').value.trim(), usuario: d.querySelector('#d-usu')?.value,
+        password: d.querySelector('#d-pw').value || null, activo: d.querySelector('#d-act').checked};
+      if (m) await rpc('editar_mecanico', {p_id: m.id, p_nombre: b.nombre, p_activo: b.activo, p_password: b.password});
+      else await DB.crearMecanico(b);
+      await cargarNombres();
+      toast('Mecánico guardado'); vMecanicos();
+    });
+  $('#m-nuevo').onclick = () => dlg(null);
+  on('[data-m]', 'click', e => dlg(mecs.find(m => m.id === e.currentTarget.dataset.m)));
+}
+
+/* ═════════ ADMIN: coches ═════════ */
+async function vCoches(){
+  marcar('coches'); st.refresh = null;
+  const coches = await DB.coches();
+  app(`<div class="fila cab"><h1>Coches</h1><button class="btn pri" id="c-nuevo">Nuevo coche</button></div>
+    ${coches.length ? `<div class="lista">${coches.map(c => `<button class="panel tarjeta" data-c="${c.id}">
+      <div class="escena">${cocheSVG(c)}</div>
+      <div class="fila entre" style="margin-top:8px"><strong>${esc(c.marca)} ${esc(c.modelo)}</strong>${placa(c.matricula)}</div>
+      <div class="suave">${datosCoche(c)}</div><div class="suave">${c.n_ordenes} orden${c.n_ordenes === 1 ? '' : 'es'}</div>
+    </button>`).join('')}</div>` : '<div class="panel vacio"><p>Aún no hay coches. Se añaden al crear una orden o desde aquí.</p></div>'}`);
+  const dlg = c => {
+    dialogo(`<h2>${c ? 'Editar coche' : 'Nuevo coche'}</h2><div id="d-prev" class="escena"></div><div id="d-campos">${camposCoche(c || {})}</div>`,
+      'Guardar', async d => {
+        const b = leerCoche(d.querySelector('#d-campos'));
+        await rpc('guardar_coche', {p_id: c ? c.id : null, p: b});
+        toast('Coche guardado'); vCoches();
+      });
+    enlazarPreview($('#d-campos'), $('#d-prev'));
+  };
+  $('#c-nuevo').onclick = () => dlg(null);
+  on('[data-c]', 'click', e => dlg(coches.find(c => c.id === +e.currentTarget.dataset.c)));
+}
+
+/* ═════════ ADMIN: histórico ═════════ */
+async function vHistorico(){
+  marcar('historico'); st.refresh = null;
+  const mecs = await DB.mecanicos();
+  app(`<h1>Histórico</h1>
+    <div class="panel">
+      <div class="grid" style="margin-top:0">
+        <label>Mecánico<select id="h-mec"><option value="">Todos</option>${mecs.map(m => `<option value="${m.id}">${esc(m.nombre)}</option>`).join('')}</select></label>
+        <label>Matrícula<input id="h-mat"></label>
+        <label>Desde<input id="h-desde" type="date"></label>
+        <label>Hasta<input id="h-hasta" type="date"></label>
+      </div>
+      <div class="fila"><button class="btn pri" id="h-buscar">Buscar</button><button class="btn sec" id="h-csv">Descargar CSV</button></div>
+    </div>
+    <div id="h-res" class="pila" style="margin-top:16px"></div>`);
+  const filtros = () => ({
+    p_mecanico: $('#h-mec').value || null,
+    p_matricula: $('#h-mat').value.trim() || null,
+    p_desde: $('#h-desde').value ? new Date($('#h-desde').value + 'T00:00').toISOString() : null,
+    p_hasta: $('#h-hasta').value ? new Date(new Date($('#h-hasta').value + 'T00:00').getTime() + 86400000).toISOString() : null,
+  });
+  const leer = async () => (await rpc('historico', filtros())).map(r => ({...r, inicio: ts(r.inicio), fin: ts(r.fin)}));
+  const MOT = {finalizada:'Finalizada', fin_turno:'Fin de turno', cerrada_admin:'Cerrada por admin'};
+  const buscar = async () => {
+    const rows = await leer();
+    const ahora = srvAhora();
+    const res = {};
+    rows.forEach(r => {
+      const x = res[r.mecanico_id] ??= {nombre: r.mecanico, seg: 0, sesiones: 0, fin: 0, coches: new Set()};
+      x.seg += (r.fin || ahora) - r.inicio; x.sesiones++; x.coches.add(r.matricula);
+      if (r.motivo === 'finalizada') x.fin++;
+    });
+    $('#h-res').innerHTML = rows.length ? `
+      <div class="panel tabla"><h2>Resumen por mecánico</h2><table>
+        <thead><tr><th>Mecánico</th><th>Tiempo trabajado</th><th>Turnos en tareas</th><th>Tareas finalizadas</th><th>Coches</th></tr></thead>
+        <tbody>${Object.values(res).map(x => `<tr><td>${esc(x.nombre)}</td><td>${fmtMin(x.seg)}</td><td>${x.sesiones}</td><td>${x.fin}</td><td>${x.coches.size}</td></tr>`).join('')}</tbody></table></div>
+      <div class="panel tabla"><h2>Detalle</h2><table>
+        <thead><tr><th>Inicio</th><th>Fin</th><th>Coche</th><th>Reparación</th><th>Mecánico</th><th>Trabajado</th><th>Asignado</th><th>Resultado</th></tr></thead>
+        <tbody>${rows.map(r => `<tr><td>${fmtFecha(r.inicio)}</td><td>${r.fin ? fmtFecha(r.fin) : 'En curso'}</td>
+          <td>${esc(r.matricula)}<div class="suave">${esc(r.marca)} ${esc(r.modelo)}</div></td>
+          <td>${esc(r.tarea)}<div class="suave">Orden ${r.orden_id}, ${esc(r.tipo_revision)}</div></td>
+          <td>${esc(r.mecanico)}</td><td>${fmtMin((r.fin || ahora) - r.inicio)}</td><td>${fmtMin(r.seg_asignados)}</td>
+          <td>${MOT[r.motivo] || 'En curso'}${r.relevo ? `<div class="suave">Relevo: ${esc(r.relevo)}</div>` : ''}${r.nota ? `<div class="suave">${esc(r.nota)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div>`
+      : '<div class="panel vacio"><p>No hay registros con esos filtros.</p></div>';
+  };
+  $('#h-buscar').onclick = accion(buscar);
+  $('#h-csv').onclick = accion(async () => {
+    const rows = await leer();
+    const ahora = srvAhora();
+    const f = t => t ? new Date(t * 1000).toLocaleString('es-ES') : '';
+    const n = x => String(Math.round(x * 10) / 10).replace('.', ',');
+    const celda = v => { v = String(v ?? ''); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    const lineas = [['Orden','Matrícula','Marca','Modelo','Revisión','Tarea','Min. asignados','Mecánico','Inicio','Fin','Min. trabajados','Motivo','Relevo','Nota']]
+      .concat(rows.map(r => [r.orden_id, r.matricula, r.marca, r.modelo, r.tipo_revision, r.tarea, n(r.seg_asignados / 60), r.mecanico,
+        f(r.inicio), f(r.fin), n(((r.fin || ahora) - r.inicio) / 60), MOT[r.motivo] || 'En curso', r.relevo, r.nota]));
+    const csv = '\ufeff' + lineas.map(l => l.map(celda).join(';')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'}));
+    a.download = 'historico-' + new Date().toISOString().slice(0,10) + '.csv'; a.click(); URL.revokeObjectURL(a.href);
+  });
+  await buscar();
+}
+
+/* ═════════ MECÁNICO ═════════ */
+async function mInicio(){
+  marcar('inicio');
+  const os = await DB.ordenes('abierta');
+  app(`<h1>Mis coches</h1>
+    ${os.length ? `<div class="lista">${os.map(o => tarjetaOrden(o, 'mio')).join('')}</div>`
+      : '<div class="panel vacio"><p>No tienes coches asignados ahora mismo.</p><p class="suave">Cuando el administrador te asigne trabajo aparecerá aquí.</p></div>'}`);
+  on('[data-mio]', 'click', e => mOrden(+e.currentTarget.dataset.mio));
+  st.refresh = mInicio;
+}
+
+async function mOrden(id){
+  marcar('inicio');
+  let o;
+  try { o = await DB.orden(id); }
+  catch(x){ toast(x.message, true); return mInicio(); }
+  const run = o.tareas.some(t => t.en_marcha);
+  const ck = !!o.checklist;
+  app(`<p><button class="lnk" id="volver">Volver a mis coches</button></p>
+  <div class="dos ${ck ? 'tareas-primero' : ''}">
+    <section class="pila">
+      <div class="panel">${fichaCoche(o.coche, run)}
+        <p style="margin-top:10px"><strong>${esc(o.tipo_revision)}</strong></p>
+        ${o.notas ? `<div class="nota-relevo">${esc(o.notas)}</div>` : ''}
+        ${o.coche.notas ? `<p class="suave">Notas del coche: ${esc(o.coche.notas)}</p>` : ''}
+      </div>
+      <div class="panel" id="ck-zona">
+        <h2>Checklist ${o.tipo_checklist === 'basico' ? 'básico' : 'completo'}</h2>
+        ${ck ? verChecklist(o.tipo_checklist, o.checklist) + '<p class="suave" style="margin-top:8px">Solo el administrador puede modificarlo.</p>'
+          : `<p>Revisa cada punto antes de empezar. Una vez guardado no podrás cambiarlo.</p>${formChecklist(o.tipo_checklist)}
+             <button class="btn pri" id="ck-guardar" style="margin-top:12px">Guardar checklist</button>`}
+      </div>
+    </section>
+    <section class="pila">
+      <h2>Mis tareas</h2>
+      ${o.tareas.map(t => tareaHTML(t, 'mec', ck)).join('')}
+    </section>
+  </div>`);
+  $('#volver').onclick = () => mInicio();
+  if (!ck){
+    $('#ck-guardar').onclick = () => {
+      let b;
+      try { b = leerChecklist($('#ck-zona')); } catch(x){ return toast(x.message, true); }
+      dialogo('<h2>Guardar checklist</h2><p>Se guardará con la fecha y hora actuales y ya no podrás editarlo.</p>',
+        'Guardar', async () => { await rpc('hacer_checklist', {p_orden: id, p_datos: b}); toast('Checklist guardado'); mOrden(id); });
+    };
+  }
+  on('[data-empezar]', 'click', accion(async (e, b) => {
+    await rpc('iniciar_tarea', {p_id: +b.dataset.empezar}); toast('Tarea en marcha'); mOrden(id);
+  }));
+  on('[data-fin]', 'click', e => {
+    const tid = +e.currentTarget.dataset.fin;
+    dialogo('<h2>Finalizar tarea</h2><p>La tarea quedará terminada para todos los mecánicos que estén en ella. No se puede deshacer.</p>',
+      'Finalizar', async () => { await rpc('terminar_tarea', {p_id: tid, p_motivo: 'finalizada'}); toast('Tarea finalizada'); mOrden(id); }, 'ok');
+  });
+  on('[data-turno]', 'click', async e => {
+    const tid = +e.currentTarget.dataset.turno;
+    const comp = await DB.companeros().catch(() => []);
+    dialogo(`<h2>Fin de turno</h2>
+      <p>La tarea queda a medias y quien la continúe recibirá el tiempo restante.</p>
+      <div class="pila" style="margin-top:10px">
+        <label>¿Quién la continúa?<select id="d-rel"><option value="">Los ya asignados</option>
+          ${comp.map(c => `<option value="${c.id}">${esc(c.nombre)}</option>`).join('')}</select></label>
+        <label>Nota para el relevo<textarea id="d-nota" rows="3" placeholder="Qué has hecho y qué falta"></textarea></label>
+      </div>`, 'Terminar mi turno', async d => {
+        await rpc('terminar_tarea', {p_id: tid, p_motivo: 'fin_turno',
+          p_relevo: d.querySelector('#d-rel').value || null, p_nota: d.querySelector('#d-nota').value});
+        toast('Turno cerrado en esta tarea'); mOrden(id);
+      });
+  });
+  st.refresh = ck ? () => mOrden(id) : null;
+  if (o.estado !== 'abierta'){ toast('Esta orden ya está cerrada'); return mInicio(); }
+}
+
+/* ═════════ arranque ═════════ */
+(async () => {
+  if (!CONFIGURADO){
+    app(`<div class="login panel"><h1>Falta configurar</h1>
+      <p>Abre <strong>config.js</strong> y pega la dirección y la clave de tu proyecto de Supabase. Los pasos están en el README.</p></div>`);
+    return;
+  }
+  const {data: {session}} = await sb.auth.getSession();
+  if (!session) return vLogin();
+  try { await arrancar(); } catch(e){ toast(e.message, true); vLogin(); }
+})();
+</script>
+</body>
+</html>
