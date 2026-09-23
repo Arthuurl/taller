@@ -44,8 +44,12 @@ create table if not exists public.ordenes(
   tipo_checklist text not null check (tipo_checklist in ('basico','completo')),
   notas text,
   estado text not null default 'abierta' check (estado in ('abierta','finalizada','cancelada')),
+  seg_consumidos numeric not null default 0,
+  en_marcha_desde timestamptz,
   creado timestamptz not null default now(),
   cerrado timestamptz);
+alter table public.ordenes add column if not exists seg_consumidos numeric not null default 0;
+alter table public.ordenes add column if not exists en_marcha_desde timestamptz;
 
 create table if not exists public.checklists(
   orden_id bigint primary key references public.ordenes(id) on delete cascade,
@@ -62,11 +66,16 @@ create table if not exists public.tareas(
   taller_id bigint not null references public.talleres(id),
   titulo text not null, descripcion text,
   seg_asignados int not null check (seg_asignados > 0),
-  seg_consumidos numeric not null default 0,
-  en_marcha_desde timestamptz,
-  estado text not null default 'pendiente' check (estado in ('pendiente','en_curso','a_medias','finalizada')),
+  estado text not null default 'pendiente' check (estado in ('pendiente','finalizada')),
   pos int not null default 0,
-  finalizada timestamptz);
+  finalizada timestamptz,
+  finalizada_por uuid references public.perfiles(id));
+alter table public.tareas add column if not exists finalizada_por uuid references public.perfiles(id);
+alter table public.tareas drop column if exists seg_consumidos;
+alter table public.tareas drop column if exists en_marcha_desde;
+update public.tareas set estado = 'pendiente' where estado not in ('pendiente','finalizada');
+alter table public.tareas drop constraint if exists tareas_estado_check;
+alter table public.tareas add constraint tareas_estado_check check (estado in ('pendiente','finalizada'));
 
 create table if not exists public.tarea_mecanicos(
   tarea_id bigint not null references public.tareas(id) on delete cascade,
@@ -74,9 +83,11 @@ create table if not exists public.tarea_mecanicos(
   taller_id bigint not null references public.talleres(id),
   primary key (tarea_id, mecanico_id));
 
-create table if not exists public.tarea_sesiones(
+drop table if exists public.tarea_sesiones cascade;
+
+create table if not exists public.orden_sesiones(
   id bigint generated always as identity primary key,
-  tarea_id bigint not null references public.tareas(id) on delete cascade,
+  orden_id bigint not null references public.ordenes(id) on delete cascade,
   taller_id bigint not null references public.talleres(id),
   mecanico_id uuid not null references public.perfiles(id),
   inicio timestamptz not null default now(),
@@ -85,11 +96,11 @@ create table if not exists public.tarea_sesiones(
   nota text,
   relevo_id uuid references public.perfiles(id));
 
--- Un mecánico solo puede tener una tarea en marcha
-create unique index if not exists una_tarea_a_la_vez on public.tarea_sesiones(mecanico_id) where fin is null;
+-- Un mecánico solo puede estar trabajando en un coche a la vez
+create unique index if not exists un_coche_a_la_vez on public.orden_sesiones(mecanico_id) where fin is null;
 create index if not exists ix_tareas_orden on public.tareas(orden_id);
 create index if not exists ix_tm_mecanico on public.tarea_mecanicos(mecanico_id);
-create index if not exists ix_ses_tarea on public.tarea_sesiones(tarea_id);
+create index if not exists ix_ses_orden on public.orden_sesiones(orden_id);
 
 -- ─────────────── Funciones de apoyo ───────────────
 create or replace function public.mi_taller() returns bigint
@@ -111,6 +122,11 @@ create or replace function public.orden_mia(p bigint) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists(select 1 from tareas t join tarea_mecanicos tm on tm.tarea_id = t.id
                 where t.orden_id = p and tm.mecanico_id = auth.uid())
+$$;
+
+create or replace function public.tarea_de_orden_mia(p bigint) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists(select 1 from tareas t where t.id = p and public.orden_mia(t.orden_id))
 $$;
 
 create or replace function public.coche_mio(p bigint) returns boolean
@@ -185,7 +201,7 @@ alter table public.ordenes         enable row level security;
 alter table public.checklists      enable row level security;
 alter table public.tareas          enable row level security;
 alter table public.tarea_mecanicos enable row level security;
-alter table public.tarea_sesiones  enable row level security;
+alter table public.orden_sesiones  enable row level security;
 
 drop policy if exists leer on public.talleres;
 create policy leer on public.talleres for select to authenticated using (id = public.mi_taller());
@@ -202,13 +218,13 @@ create policy leer on public.checklists for select to authenticated
   using (taller_id = public.mi_taller() and (public.es_admin() or public.orden_mia(orden_id)));
 drop policy if exists leer on public.tareas;
 create policy leer on public.tareas for select to authenticated
-  using (taller_id = public.mi_taller() and (public.es_admin() or public.tarea_mia(id)));
+  using (taller_id = public.mi_taller() and (public.es_admin() or public.orden_mia(orden_id)));
 drop policy if exists leer on public.tarea_mecanicos;
 create policy leer on public.tarea_mecanicos for select to authenticated
-  using (taller_id = public.mi_taller() and (public.es_admin() or public.tarea_mia(tarea_id)));
-drop policy if exists leer on public.tarea_sesiones;
-create policy leer on public.tarea_sesiones for select to authenticated
-  using (taller_id = public.mi_taller() and (public.es_admin() or public.tarea_mia(tarea_id)));
+  using (taller_id = public.mi_taller() and (public.es_admin() or public.tarea_de_orden_mia(tarea_id)));
+drop policy if exists leer on public.orden_sesiones;
+create policy leer on public.orden_sesiones for select to authenticated
+  using (taller_id = public.mi_taller() and (public.es_admin() or public.orden_mia(orden_id)));
 
 revoke insert, update, delete on all tables in schema public from anon, authenticated;
 
@@ -336,8 +352,8 @@ create or replace function public.borrar_tarea(p_id bigint) returns void
 language plpgsql security definer set search_path = public as $$
 declare t bigint := public._admin();
 begin
-  if exists(select 1 from tarea_sesiones where tarea_id = p_id) then
-    raise exception 'No se puede eliminar: ya se ha trabajado en ella'; end if;
+  if exists(select 1 from tareas where id = p_id and estado = 'finalizada') then
+    raise exception 'No se puede eliminar: ya está marcada como hecha'; end if;
   delete from tareas where id = p_id and taller_id = t;
   if not found then raise exception 'Tarea no encontrada'; end if;
 end $$;
@@ -377,20 +393,19 @@ end $$;
 
 create or replace function public.cambiar_estado_orden(p_id bigint, p_estado text) returns void
 language plpgsql security definer set search_path = public as $$
-declare t bigint := public._admin(); r tareas;
+declare t bigint := public._admin(); o ordenes;
 begin
   if p_estado not in ('abierta','finalizada','cancelada') then raise exception 'Estado no válido'; end if;
-  perform 1 from ordenes where id = p_id and taller_id = t for update;
+  select * into o from ordenes where id = p_id and taller_id = t for update;
   if not found then raise exception 'Orden no encontrada'; end if;
   if p_estado = 'abierta' then
     update ordenes set estado = 'abierta', cerrado = null where id = p_id;
   else
-    for r in select * from tareas where orden_id = p_id and en_marcha_desde is not null for update loop
-      update tareas set seg_consumidos = r.seg_consumidos + extract(epoch from now() - r.en_marcha_desde),
-                        en_marcha_desde = null, estado = 'a_medias' where id = r.id;
-    end loop;
-    update tarea_sesiones set fin = now(), motivo = 'cerrada_admin'
-     where fin is null and tarea_id in (select id from tareas where orden_id = p_id);
+    if o.en_marcha_desde is not null then
+      update ordenes set seg_consumidos = o.seg_consumidos + extract(epoch from now() - o.en_marcha_desde),
+                         en_marcha_desde = null where id = p_id;
+    end if;
+    update orden_sesiones set fin = now(), motivo = 'cerrada_admin' where orden_id = p_id and fin is null;
     update ordenes set estado = p_estado, cerrado = now() where id = p_id;
   end if;
 end $$;
@@ -442,36 +457,59 @@ begin
   if not found then raise exception 'Esta orden aún no tiene checklist'; end if;
 end $$;
 
--- ─────────────── Tiempo de las tareas ───────────────
-create or replace function public.iniciar_tarea(p_id bigint) returns void
+-- ─────────────── Tiempo de trabajo (una sola cuenta por coche) ───────────────
+drop function if exists public.iniciar_tarea(bigint);
+drop function if exists public.terminar_tarea(bigint, text, uuid, text);
+
+create or replace function public.iniciar_orden(p_orden bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare yo perfiles := public._yo(); o ordenes;
+begin
+  select * into o from ordenes where id = p_orden and taller_id = yo.taller_id for update;
+  if not found then raise exception 'Orden no encontrada'; end if;
+  if o.estado <> 'abierta' then raise exception 'La orden está cerrada'; end if;
+  if not public.orden_mia(p_orden) then raise exception 'Este coche no está asignado a ti'; end if;
+  if not exists(select 1 from checklists where orden_id = p_orden) then
+    raise exception 'Primero tienes que hacer el checklist'; end if;
+  if exists(select 1 from orden_sesiones where mecanico_id = yo.id and fin is null and orden_id <> p_orden) then
+    raise exception 'Ya estás trabajando en otro coche. Marca fin de turno antes'; end if;
+  if exists(select 1 from orden_sesiones where mecanico_id = yo.id and fin is null and orden_id = p_orden) then
+    return; end if;
+  if o.en_marcha_desde is null then
+    update ordenes set en_marcha_desde = now() where id = p_orden;
+  end if;
+  insert into orden_sesiones(orden_id, taller_id, mecanico_id) values (p_orden, yo.taller_id, yo.id);
+end $$;
+
+create or replace function public.marcar_tarea(p_id bigint, p_hecha boolean) returns void
 language plpgsql security definer set search_path = public as $$
 declare yo perfiles := public._yo(); t tareas; v_estado text;
 begin
-  select * into t from tareas where id = p_id and taller_id = yo.taller_id for update;
-  if not found then raise exception 'Tarea no encontrada'; end if;
+  select * into t from tareas where id = p_id and taller_id = yo.taller_id;
+  if not found then raise exception 'Reparación no encontrada'; end if;
   select estado into v_estado from ordenes where id = t.orden_id;
   if v_estado <> 'abierta' then raise exception 'La orden está cerrada'; end if;
-  if not public.tarea_mia(p_id) then raise exception 'Esta tarea no está asignada a ti'; end if;
-  if not exists(select 1 from checklists where orden_id = t.orden_id) then
-    raise exception 'Primero tienes que hacer el checklist'; end if;
-  if t.estado = 'finalizada' then raise exception 'La tarea ya está finalizada'; end if;
-  if exists(select 1 from tarea_sesiones where mecanico_id = yo.id and fin is null) then
-    raise exception 'Ya tienes otra tarea en marcha. Finalízala o marca fin de turno'; end if;
-  if t.en_marcha_desde is null then
-    update tareas set en_marcha_desde = now(), estado = 'en_curso' where id = p_id;
+  if yo.rol = 'mecanico' then
+    if not public.tarea_mia(p_id) then raise exception 'Esta reparación no está asignada a ti'; end if;
+    if not exists(select 1 from orden_sesiones where orden_id = t.orden_id and mecanico_id = yo.id and fin is null) then
+      raise exception 'Primero tienes que empezar el trabajo'; end if;
   end if;
-  insert into tarea_sesiones(tarea_id, taller_id, mecanico_id) values (p_id, yo.taller_id, yo.id);
+  if p_hecha then
+    update tareas set estado = 'finalizada', finalizada = now(), finalizada_por = yo.id where id = p_id;
+  else
+    update tareas set estado = 'pendiente', finalizada = null, finalizada_por = null where id = p_id;
+  end if;
 end $$;
 
-create or replace function public.terminar_tarea(p_id bigint, p_motivo text, p_relevo uuid default null, p_nota text default null)
+create or replace function public.terminar_orden(p_orden bigint, p_motivo text, p_relevo uuid default null, p_nota text default null)
 returns void language plpgsql security definer set search_path = public as $$
-declare yo perfiles := public._yo(); t tareas; v_ses bigint; v_desde timestamptz;
+declare yo perfiles := public._yo(); o ordenes; v_ses bigint; v_desde timestamptz; v_pend text;
 begin
   if p_motivo not in ('finalizada','fin_turno') then raise exception 'Motivo no válido'; end if;
-  select * into t from tareas where id = p_id and taller_id = yo.taller_id for update;
-  if not found then raise exception 'Tarea no encontrada'; end if;
-  select id into v_ses from tarea_sesiones where tarea_id = p_id and mecanico_id = yo.id and fin is null;
-  if v_ses is null then raise exception 'No estás trabajando en esta tarea'; end if;
+  select * into o from ordenes where id = p_orden and taller_id = yo.taller_id for update;
+  if not found then raise exception 'Orden no encontrada'; end if;
+  select id into v_ses from orden_sesiones where orden_id = p_orden and mecanico_id = yo.id and fin is null;
+  if v_ses is null then raise exception 'No estás trabajando en este coche'; end if;
   if p_motivo = 'fin_turno' and p_relevo is not null then
     if p_relevo = yo.id or not exists(select 1 from perfiles where id = p_relevo and taller_id = yo.taller_id
                                        and rol = 'mecanico' and activo) then
@@ -479,47 +517,49 @@ begin
   else
     p_relevo := null;
   end if;
-  v_desde := coalesce(t.en_marcha_desde, now());
-  update tarea_sesiones set fin = now(), motivo = p_motivo, nota = nullif(trim(p_nota),''), relevo_id = p_relevo
+  v_desde := coalesce(o.en_marcha_desde, now());
+  update orden_sesiones set fin = now(), motivo = p_motivo, nota = nullif(trim(p_nota),''), relevo_id = p_relevo
    where id = v_ses;
   if p_motivo = 'finalizada' then
-    -- el tiempo es compartido: finalizar cierra la tarea para todos
-    update tarea_sesiones set fin = now(), motivo = 'finalizada' where tarea_id = p_id and fin is null;
-    update tareas set seg_consumidos = t.seg_consumidos + extract(epoch from now() - v_desde),
-                      en_marcha_desde = null, estado = 'finalizada', finalizada = now()
-     where id = p_id;
-    if not exists(select 1 from tareas where orden_id = t.orden_id and estado <> 'finalizada') then
-      update ordenes set estado = 'finalizada', cerrado = now() where id = t.orden_id;
-    end if;
+    select titulo into v_pend from tareas where orden_id = p_orden and estado <> 'finalizada' order by pos, id limit 1;
+    if v_pend is not null then
+      raise exception 'Falta marcar «%». Marca todas las reparaciones antes de terminar', v_pend; end if;
+    update orden_sesiones set fin = now(), motivo = 'finalizada' where orden_id = p_orden and fin is null;
+    update ordenes set seg_consumidos = o.seg_consumidos + extract(epoch from now() - v_desde),
+                       en_marcha_desde = null, estado = 'finalizada', cerrado = now()
+     where id = p_orden;
   else
     if p_relevo is not null then
-      insert into tarea_mecanicos(tarea_id, mecanico_id, taller_id) values (p_id, p_relevo, yo.taller_id)
+      insert into tarea_mecanicos(tarea_id, mecanico_id, taller_id)
+      select t.id, p_relevo, yo.taller_id from tareas t where t.orden_id = p_orden and t.estado <> 'finalizada'
       on conflict do nothing;
     end if;
-    if not exists(select 1 from tarea_sesiones where tarea_id = p_id and fin is null) then
-      update tareas set seg_consumidos = t.seg_consumidos + extract(epoch from now() - v_desde),
-                        en_marcha_desde = null, estado = 'a_medias'
-       where id = p_id;
+    if not exists(select 1 from orden_sesiones where orden_id = p_orden and fin is null) then
+      update ordenes set seg_consumidos = o.seg_consumidos + extract(epoch from now() - v_desde),
+                         en_marcha_desde = null where id = p_orden;
     end if;
   end if;
 end $$;
 
 -- ─────────────── Histórico ───────────────
+drop function if exists public.historico(uuid, text, timestamptz, timestamptz);
+
 create or replace function public.historico(p_mecanico uuid default null, p_matricula text default null,
                                             p_desde timestamptz default null, p_hasta timestamptz default null)
 returns table(inicio timestamptz, fin timestamptz, motivo text, nota text, mecanico_id uuid, mecanico text,
-              relevo text, tarea text, seg_asignados int, orden_id bigint, tipo_revision text,
+              relevo text, orden_id bigint, tipo_revision text, seg_asignados bigint, reparaciones bigint,
               matricula text, marca text, modelo text)
 language plpgsql stable security definer set search_path = public as $$
 #variable_conflict use_column
 declare t bigint := public._admin();
 begin
   return query
-  select s.inicio, s.fin, s.motivo, s.nota, u.id, u.nombre, r.nombre, ta.titulo, ta.seg_asignados,
-         o.id, o.tipo_revision, c.matricula, c.marca, c.modelo
-  from tarea_sesiones s
-  join tareas ta on ta.id = s.tarea_id
-  join ordenes o on o.id = ta.orden_id
+  select s.inicio, s.fin, s.motivo, s.nota, u.id, u.nombre, r.nombre, o.id, o.tipo_revision,
+         (select coalesce(sum(ta.seg_asignados), 0) from tareas ta where ta.orden_id = o.id),
+         (select count(*) from tareas ta where ta.orden_id = o.id and ta.finalizada_por = u.id),
+         c.matricula, c.marca, c.modelo
+  from orden_sesiones s
+  join ordenes o on o.id = s.orden_id
   join coches c on c.id = o.coche_id
   join perfiles u on u.id = s.mecanico_id
   left join perfiles r on r.id = s.relevo_id
@@ -529,6 +569,30 @@ begin
     and (p_desde is null or s.inicio >= p_desde)
     and (p_hasta is null or s.inicio < p_hasta)
   order by s.inicio desc
+  limit 5000;
+end $$;
+
+create or replace function public.historico_reparaciones(p_mecanico uuid default null, p_matricula text default null,
+                                                         p_desde timestamptz default null, p_hasta timestamptz default null)
+returns table(finalizada timestamptz, reparacion text, minutos numeric, mecanico text, orden_id bigint,
+              tipo_revision text, matricula text, marca text, modelo text)
+language plpgsql stable security definer set search_path = public as $$
+#variable_conflict use_column
+declare t bigint := public._admin();
+begin
+  return query
+  select ta.finalizada, ta.titulo, round(ta.seg_asignados / 60.0, 1), u.nombre, o.id, o.tipo_revision,
+         c.matricula, c.marca, c.modelo
+  from tareas ta
+  join ordenes o on o.id = ta.orden_id
+  join coches c on c.id = o.coche_id
+  left join perfiles u on u.id = ta.finalizada_por
+  where ta.taller_id = t and ta.estado = 'finalizada'
+    and (p_mecanico is null or ta.finalizada_por = p_mecanico)
+    and (coalesce(p_matricula,'') = '' or c.matricula like '%' || upper(regexp_replace(p_matricula, '[\s-]', '', 'g')) || '%')
+    and (p_desde is null or ta.finalizada >= p_desde)
+    and (p_hasta is null or ta.finalizada < p_hasta)
+  order by ta.finalizada desc
   limit 5000;
 end $$;
 

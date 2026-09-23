@@ -75,6 +75,12 @@ legend{font-size:.85rem;color:var(--suave);padding:0 4px}
 .cd{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-weight:700;font-size:2.6rem;font-variant-numeric:tabular-nums;line-height:1;margin-top:4px}
 .cd.neg{color:var(--rojo)}
 .cd.oculto{color:var(--linea);letter-spacing:.05em}
+.reps{margin-top:12px}
+.rep{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--linea)}
+.rep.hecha strong{text-decoration:line-through;color:var(--suave)}
+.chk-rep{display:flex;gap:10px;align-items:flex-start;color:var(--tinta);font-size:1rem;margin:0;flex:1 1 220px;cursor:pointer}
+.chk-rep input{width:24px;height:24px;margin:2px 0 0;flex:0 0 auto;accent-color:var(--verde)}
+.chk-rep input:disabled{cursor:not-allowed}
 .derecha{text-align:right}
 .nota-relevo{background:#FFF6D6;border-left:4px solid var(--amar);padding:6px 10px;margin-top:8px;font-size:.92rem}
 .ck-item{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--linea)}
@@ -176,33 +182,34 @@ const nom = id => NOMBRES[id] || '—';
 const uno1 = x => Array.isArray(x) ? (x[0] || null) : x;
 
 function normTarea(t){
-  const ahora = srvAhora();
-  const ses = t.tarea_sesiones || [];
-  const consumido = Number(t.seg_consumidos) + (t.en_marcha_desde ? ahora - ts(t.en_marcha_desde) : 0);
-  const rel = ses.filter(x => x.motivo === 'fin_turno').sort((a, b) => ts(b.fin) - ts(a.fin))[0];
   return {
     id: t.id, orden_id: t.orden_id, titulo: t.titulo, descripcion: t.descripcion, estado: t.estado, pos: t.pos,
-    seg_asignados: t.seg_asignados, consumido: Math.round(consumido), restante: Math.round(t.seg_asignados - consumido),
-    en_marcha: !!t.en_marcha_desde, finalizada: ts(t.finalizada),
+    seg_asignados: t.seg_asignados, finalizada: ts(t.finalizada),
+    finalizada_por: t.finalizada_por ? nom(t.finalizada_por) : null,
     mecanicos: (t.tarea_mecanicos || []).map(m => ({id: m.mecanico_id, nombre: nom(m.mecanico_id)})).sort((a, b) => a.nombre.localeCompare(b.nombre)),
-    activos: ses.filter(x => !x.fin).map(x => ({id: x.mecanico_id, nombre: nom(x.mecanico_id)})),
-    relevo: rel ? {de: nom(rel.mecanico_id), para: rel.relevo_id ? nom(rel.relevo_id) : null, nota: rel.nota, fin: ts(rel.fin)} : null,
-    tiene_sesiones: ses.length > 0,
   };
 }
 function normOrden(o){
+  const ahora = srvAhora();
   const tareas = (o.tareas || []).map(normTarea).sort((a, b) => a.pos - b.pos || a.id - b.id);
+  const ses = o.orden_sesiones || [];
   const ck = uno1(o.checklist);
+  const consumido = Number(o.seg_consumidos) + (o.en_marcha_desde ? ahora - ts(o.en_marcha_desde) : 0);
+  const seg_total = tareas.reduce((a, t) => a + t.seg_asignados, 0);
+  const rel = ses.filter(x => x.motivo === 'fin_turno').sort((a, b) => ts(b.fin) - ts(a.fin))[0];
   return {
     id: o.id, estado: o.estado, tipo_revision: o.tipo_revision, tipo_checklist: o.tipo_checklist, notas: o.notas,
     creado: ts(o.creado), cerrado: ts(o.cerrado), coche: uno1(o.coche),
     checklist: ck ? {creado: ts(ck.creado), realizado_por: nom(ck.realizado_por), modificado: ts(ck.modificado),
                      modificado_por: ck.modificado_por ? nom(ck.modificado_por) : null, datos: ck.datos} : null,
-    tareas, seg_total: tareas.reduce((a, t) => a + t.seg_asignados, 0),
+    tareas, seg_total, consumido: Math.round(consumido), restante: Math.round(seg_total - consumido),
+    en_marcha: !!o.en_marcha_desde, tiene_sesiones: ses.length > 0,
+    activos: ses.filter(x => !x.fin).map(x => ({id: x.mecanico_id, nombre: nom(x.mecanico_id)})),
+    relevo: rel ? {de: nom(rel.mecanico_id), para: rel.relevo_id ? nom(rel.relevo_id) : null, nota: rel.nota, fin: ts(rel.fin)} : null,
     n_tareas: tareas.length, n_finalizadas: tareas.filter(t => t.estado === 'finalizada').length,
   };
 }
-const SEL_ORDEN = '*, coche:coches(*), checklist:checklists(*), tareas(*, tarea_mecanicos(mecanico_id), tarea_sesiones(id,mecanico_id,inicio,fin,motivo,nota,relevo_id))';
+const SEL_ORDEN = '*, coche:coches(*), checklist:checklists(*), tareas(*, tarea_mecanicos(mecanico_id)), orden_sesiones(id,mecanico_id,inicio,fin,motivo,nota,relevo_id)';
 
 const DB = {
   async ordenes(estado){
@@ -429,44 +436,61 @@ function verChecklist(tipo, ck){
 }
 
 /* ═════════ tareas ═════════ */
-function tareaHTML(t, modo, ckHecho){
-  const run = t.en_marcha;
-  const mia = modo === 'mec' && t.activos.some(a => a.id === yo.id);
+function bloqueTrabajo(o, modo){
+  const run = o.en_marcha, abierta = o.estado === 'abierta';
+  const trabajando = modo === 'mec' && o.activos.some(a => a.id === yo.id);
+  const verTiempo = modo === 'admin' || trabajando || !abierta;   // el mecánico lo ve al empezar
+  const puedoMarcar = abierta && (modo === 'admin' || trabajando);
+  const filas = o.tareas.map(t => {
+    const mia = modo === 'admin' || t.mecanicos.some(m => m.id === yo.id);
+    const hecha = t.estado === 'finalizada';
+    return `<div class="rep${hecha ? ' hecha' : ''}">
+      <label class="chk-rep">
+        <input type="checkbox" data-marcar="${t.id}" ${hecha ? 'checked' : ''} ${puedoMarcar && mia ? '' : 'disabled'}>
+        <span><strong>${esc(t.titulo)}</strong>
+          ${t.descripcion ? `<br>${esc(t.descripcion)}` : ''}
+          <br><span class="suave">${esc(t.mecanicos.map(m => m.nombre).join(', ') || 'sin asignar')}${modo === 'admin' ? `, ${fmtMin(t.seg_asignados)}` : ''}</span>
+          ${hecha ? `<br><span class="suave">Hecha el ${fmtFecha(t.finalizada)}${t.finalizada_por ? ', por ' + esc(t.finalizada_por) : ''}</span>` : ''}
+        </span>
+      </label>
+      ${modo === 'admin' ? `<div class="fila"><button class="btn sec" data-editar="${t.id}">Editar</button>
+        ${hecha ? '' : `<button class="btn peligro" data-borrar="${t.id}">Eliminar</button>`}</div>` : ''}
+    </div>`;
+  }).join('') || '<p>Sin reparaciones.</p>';
   let acc = '';
-  if (modo === 'mec' && t.estado !== 'finalizada'){
-    acc = mia
-      ? `<button class="btn ok" data-fin="${t.id}">Finalizar tarea</button><button class="btn sec" data-turno="${t.id}">Fin de turno</button>`
-      : `<button class="btn pri" data-empezar="${t.id}" ${ckHecho ? '' : 'disabled'}>${run ? 'Unirme a la tarea' : t.estado === 'a_medias' ? 'Continuar tarea' : 'Empezar tarea'}</button>
-         ${ckHecho ? '' : '<span class="suave">Haz primero el checklist</span>'}`;
+  if (modo === 'mec' && abierta){
+    acc = trabajando
+      ? `<button class="btn ok" data-fin="${o.id}" ${o.n_finalizadas === o.n_tareas && o.n_tareas ? '' : 'disabled'}>Finalizar trabajo</button>
+         <button class="btn sec" data-turno="${o.id}">Fin de turno</button>
+         ${o.n_finalizadas === o.n_tareas && o.n_tareas ? '' : '<span class="suave">Marca todas las reparaciones para poder terminar</span>'}`
+      : `<button class="btn pri" data-empezar="${o.id}">${run ? 'Unirme al trabajo' : o.tiene_sesiones ? 'Continuar trabajo' : 'Empezar trabajo'}</button>`;
   }
-  if (modo === 'admin'){
-    acc = `<button class="btn sec" data-editar="${t.id}">Editar</button>` +
-          (!t.tiene_sesiones ? `<button class="btn peligro" data-borrar="${t.id}">Eliminar</button>` : '');
-  }
-  // El mecánico no ve el tiempo hasta que empieza la tarea
-  const verTiempo = modo === 'admin' || mia || t.estado === 'finalizada';
-  const r = t.relevo;
-  return `<article class="tarea ${run ? 'run' : ''}">
+  return `<article class="panel tarea${run ? ' run' : ''}">
     <div class="fila entre" style="align-items:flex-start;flex-wrap:nowrap">
       <div style="min-width:0">
-        <h3>${esc(t.titulo)}</h3>
-        ${t.descripcion ? `<p>${esc(t.descripcion)}</p>` : ''}
-        <p class="suave">Asignada a ${esc(t.mecanicos.map(m => m.nombre).join(', ') || 'nadie')}</p>
-        ${run ? `<p><strong>Trabajando:</strong> ${esc(t.activos.map(a => a.nombre).join(', '))}</p>` : ''}
-        ${t.estado === 'finalizada' ? `<p class="suave">Terminada el ${fmtFecha(t.finalizada)}, tiempo real ${fmtMin(t.consumido)}</p>` : ''}
+        <h2 style="margin:0">Reparaciones</h2>
+        <div class="suave">${o.n_finalizadas} de ${o.n_tareas} hechas</div>
+        ${run ? `<p><strong>Trabajando:</strong> ${esc(o.activos.map(a => a.nombre).join(', '))}</p>` : ''}
       </div>
       <div class="derecha">
-        ${badge(t.estado)}
         ${verTiempo
-          ? `${t.estado === 'finalizada' ? '' : `<div class="cd" data-rest="${t.restante}" data-run="${run ? 1 : 0}" data-t="${Date.now()}">${fmtCD(t.restante)}</div>`}
-             <div class="suave">de ${fmtMin(t.seg_asignados)}</div>`
-          : `<div class="cd oculto" aria-hidden="true">--:--</div>
-             <div class="suave">Al empezar</div>`}
+          ? `<div class="cd" data-rest="${o.restante}" data-run="${run ? 1 : 0}" data-t="${Date.now()}">${fmtCD(o.restante)}</div>
+             <div class="suave">de ${fmtMin(o.seg_total)} en total</div>`
+          : `<div class="cd oculto" aria-hidden="true">--:--</div><div class="suave">Al empezar</div>`}
       </div>
     </div>
-    ${r && t.estado !== 'finalizada' ? `<div class="nota-relevo">Relevo de ${esc(r.de)}${r.para ? ' para ' + esc(r.para) : ''}, ${fmtFecha(r.fin)}${r.nota ? ': ' + esc(r.nota) : ''}</div>` : ''}
+    ${o.relevo && abierta ? `<div class="nota-relevo">Relevo de ${esc(o.relevo.de)}${o.relevo.para ? ' para ' + esc(o.relevo.para) : ''}, ${fmtFecha(o.relevo.fin)}${o.relevo.nota ? ': ' + esc(o.relevo.nota) : ''}</div>` : ''}
+    <div class="reps">${filas}</div>
+    ${modo === 'admin' ? `<div class="fila" style="margin-top:12px"><button class="btn pri" id="t-nueva">Añadir reparación</button></div>` : ''}
     ${acc ? `<div class="fila" style="margin-top:12px">${acc}</div>` : ''}
   </article>`;
+}
+function marcarReparaciones(recargar){
+  on('[data-marcar]', 'change', async e => {
+    const el = e.currentTarget; el.disabled = true;
+    try { await rpc('marcar_tarea', {p_id: +el.dataset.marcar, p_hecha: el.checked}); recargar(); }
+    catch(x){ toast(x.message, true); el.checked = !el.checked; el.disabled = false; }
+  });
 }
 setInterval(() => {
   document.querySelectorAll('.cd[data-rest]').forEach(el => {
@@ -479,15 +503,19 @@ setInterval(() => { if (st.refresh && !st.editing && !document.hidden) st.refres
 /* ═════════ ADMIN: órdenes ═════════ */
 function tarjetaOrden(o, destino){
   const pct = o.n_tareas ? Math.round(o.n_finalizadas / o.n_tareas * 100) : 0;
-  const run = o.tareas.some(t => t.en_marcha);
+  const run = o.en_marcha;
+  const mec = destino === 'mio';
+  const resumen = mec && !o.checklist
+    ? '<div class="suave">Checklist pendiente. Hazlo para ver las reparaciones.</div>'
+    : `<div class="barra-prog"><i style="width:${pct}%"></i></div>
+       <div class="suave">${o.n_finalizadas} de ${o.n_tareas} reparaciones hechas${mec ? '' : `, ${fmtMin(o.seg_total)} en total`}</div>
+       <div class="suave">${o.checklist ? 'Checklist hecho' : 'Checklist pendiente'}${run ? ', trabajando ahora' : ''}</div>`;
   return `<button class="panel tarjeta" data-${destino}="${o.id}">
     <div class="escena">${cocheSVG(o.coche, run)}</div>
     <div class="fila entre" style="margin-top:8px">${placa(o.coche.matricula)}${badge(o.estado)}</div>
     <h3 style="margin:8px 0 0">${esc(o.coche.marca)} ${esc(o.coche.modelo)}</h3>
     <div class="suave">${esc(o.tipo_revision)}, checklist ${o.tipo_checklist === 'basico' ? 'básico' : 'completo'}</div>
-    <div class="barra-prog"><i style="width:${pct}%"></i></div>
-    <div class="suave">${o.n_finalizadas} de ${o.n_tareas} tareas, ${fmtMin(o.seg_total)} en total</div>
-    <div class="suave">${o.checklist ? 'Checklist hecho' : 'Checklist pendiente'}${run ? ', trabajando ahora' : ''}</div>
+    ${resumen}
   </button>`;
 }
 
@@ -509,7 +537,7 @@ async function vOrdenes(){
 async function vOrden(id){
   marcar('ordenes');
   const [o, mecs] = await Promise.all([DB.orden(id), DB.mecanicos()]);
-  const run = o.tareas.some(t => t.en_marcha);
+  const run = o.en_marcha;
   app(`<p><button class="lnk" id="volver">Volver a órdenes</button></p>
   <div class="dos">
     <section class="pila">
@@ -519,7 +547,7 @@ async function vOrden(id){
         <label style="margin-top:10px">Tipo de revisión<input id="o-tipo" value="${esc(o.tipo_revision)}"></label>
         <label style="margin-top:8px">Notas para el mecánico<textarea id="o-notas" rows="2">${esc(o.notas || '')}</textarea></label>
         <p class="suave">Creada el ${fmtFecha(o.creado)}${o.cerrado ? `, cerrada el ${fmtFecha(o.cerrado)}` : ''}</p>
-        <p class="suave">Tiempo total asignado: ${fmtMin(o.seg_total)}</p>
+        <p class="suave">Tiempo total asignado: ${fmtMin(o.seg_total)}, consumido ${fmtMin(o.consumido)}</p>
         <div class="fila" style="margin-top:10px">
           <button class="btn sec" id="o-guardar">Guardar datos</button>
           ${o.estado === 'abierta'
@@ -535,15 +563,14 @@ async function vOrden(id){
         <div id="ck-cuerpo" style="margin-top:10px">${o.checklist ? verChecklist(o.tipo_checklist, o.checklist)
           : `<p>Pendiente. Lo hará el mecánico antes de empezar.</p><button class="btn sec" id="ck-hacer">Hacerlo yo</button>`}</div>
       </div>
-      <div class="fila entre"><h2 style="margin:0">Reparaciones</h2><button class="btn pri" id="t-nueva">Añadir reparación</button></div>
-      ${o.tareas.map(t => tareaHTML(t, 'admin')).join('') || '<p>Sin reparaciones.</p>'}
+      ${bloqueTrabajo(o, 'admin')}
     </section>
   </div>`);
   $('#volver').onclick = () => vOrdenes();
   $('#o-guardar').onclick = accion(async () => { await rpc('editar_orden', {p_id: id, p_tipo: $('#o-tipo').value, p_notas: $('#o-notas').value}); toast('Datos guardados'); });
   on('[data-estado]', 'click', e => {
     const est = e.currentTarget.dataset.estado;
-    const txt = {finalizada:'¿Cerrar la orden? Las tareas en marcha se detendrán.', cancelada:'¿Cancelar la orden? Las tareas en marcha se detendrán.', abierta:'¿Reabrir la orden?'}[est];
+    const txt = {finalizada:'¿Cerrar la orden? Si hay alguien trabajando, se le parará el tiempo.', cancelada:'¿Cancelar la orden? Si hay alguien trabajando, se le parará el tiempo.', abierta:'¿Reabrir la orden?'}[est];
     dialogo(`<h2>${est === 'abierta' ? 'Reabrir' : est === 'finalizada' ? 'Cerrar' : 'Cancelar'} orden</h2><p>${txt}</p>`, 'Confirmar',
       async () => { await rpc('cambiar_estado_orden', {p_id: id, p_estado: est}); toast('Orden actualizada'); vOrden(id); }, est === 'cancelada' ? 'peligro' : 'pri');
   });
@@ -570,7 +597,7 @@ async function vOrden(id){
       <fieldset><legend>Mecánicos (comparten el tiempo)</legend>
         ${mecs.filter(m => m.activo || t?.mecanicos.some(x => x.id === m.id)).map(m => `<label class="chk"><input type="checkbox" value="${m.id}" ${t?.mecanicos.some(x => x.id === m.id) ? 'checked' : ''}> ${esc(m.nombre)}</label>`).join('') || 'Crea antes un mecánico.'}
       </fieldset>
-      ${t?.tiene_sesiones ? '<p class="suave">El tiempo ya consumido se mantiene. Si cambias los minutos, el contador se recalcula.</p>' : ''}
+      <p class="suave">Los minutos de todas las reparaciones se suman en un único tiempo para el coche.</p>
     </div>`, 'Guardar', async d => {
       const body = {titulo: d.querySelector('#d-tit').value, descripcion: d.querySelector('#d-desc').value,
         minutos: +d.querySelector('#d-min').value, mecanicos: [...d.querySelectorAll('fieldset input:checked')].map(x => x.value)};
@@ -579,6 +606,7 @@ async function vOrden(id){
       toast('Reparación guardada'); vOrden(id);
     });
   $('#t-nueva').onclick = () => dlgTarea(null);
+  marcarReparaciones(() => vOrden(id));
   on('[data-editar]', 'click', e => dlgTarea(o.tareas.find(t => t.id === +e.currentTarget.dataset.editar)));
   on('[data-borrar]', 'click', e => {
     const tid = +e.currentTarget.dataset.borrar;
@@ -746,6 +774,14 @@ async function vCoches(){
 }
 
 /* ═════════ ADMIN: histórico ═════════ */
+const MOT = {finalizada:'Trabajo finalizado', fin_turno:'Fin de turno', cerrada_admin:'Cerrada por admin'};
+function descargarCSV(nombre, cabeceras, filas){
+  const celda = v => { v = String(v ?? ''); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const csv = '\ufeff' + [cabeceras].concat(filas).map(l => l.map(celda).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'}));
+  a.download = nombre + '-' + new Date().toISOString().slice(0,10) + '.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
 async function vHistorico(){
   marcar('historico'); st.refresh = null;
   const mecs = await DB.mecanicos();
@@ -757,7 +793,9 @@ async function vHistorico(){
         <label>Desde<input id="h-desde" type="date"></label>
         <label>Hasta<input id="h-hasta" type="date"></label>
       </div>
-      <div class="fila"><button class="btn pri" id="h-buscar">Buscar</button><button class="btn sec" id="h-csv">Descargar CSV</button></div>
+      <div class="fila"><button class="btn pri" id="h-buscar">Buscar</button>
+        <button class="btn sec" id="h-csv">CSV de turnos</button>
+        <button class="btn sec" id="h-csv2">CSV de reparaciones</button></div>
     </div>
     <div id="h-res" class="pila" style="margin-top:16px"></div>`);
   const filtros = () => ({
@@ -766,44 +804,47 @@ async function vHistorico(){
     p_desde: $('#h-desde').value ? new Date($('#h-desde').value + 'T00:00').toISOString() : null,
     p_hasta: $('#h-hasta').value ? new Date(new Date($('#h-hasta').value + 'T00:00').getTime() + 86400000).toISOString() : null,
   });
-  const leer = async () => (await rpc('historico', filtros())).map(r => ({...r, inicio: ts(r.inicio), fin: ts(r.fin)}));
-  const MOT = {finalizada:'Finalizada', fin_turno:'Fin de turno', cerrada_admin:'Cerrada por admin'};
+  const leerTurnos = async () => (await rpc('historico', filtros())).map(r => ({...r, inicio: ts(r.inicio), fin: ts(r.fin)}));
+  const leerReps = async () => (await rpc('historico_reparaciones', filtros())).map(r => ({...r, finalizada: ts(r.finalizada)}));
   const buscar = async () => {
-    const rows = await leer();
+    const [turnos, reps] = await Promise.all([leerTurnos(), leerReps()]);
     const ahora = srvAhora();
     const res = {};
-    rows.forEach(r => {
-      const x = res[r.mecanico_id] ??= {nombre: r.mecanico, seg: 0, sesiones: 0, fin: 0, coches: new Set()};
-      x.seg += (r.fin || ahora) - r.inicio; x.sesiones++; x.coches.add(r.matricula);
-      if (r.motivo === 'finalizada') x.fin++;
+    turnos.forEach(r => {
+      const x = res[r.mecanico_id] ??= {nombre: r.mecanico, seg: 0, turnos: 0, coches: new Set(), reps: 0};
+      x.seg += (r.fin || ahora) - r.inicio; x.turnos++; x.coches.add(r.matricula);
     });
-    $('#h-res').innerHTML = rows.length ? `
-      <div class="panel tabla"><h2>Resumen por mecánico</h2><table>
-        <thead><tr><th>Mecánico</th><th>Tiempo trabajado</th><th>Turnos en tareas</th><th>Tareas finalizadas</th><th>Coches</th></tr></thead>
-        <tbody>${Object.values(res).map(x => `<tr><td>${esc(x.nombre)}</td><td>${fmtMin(x.seg)}</td><td>${x.sesiones}</td><td>${x.fin}</td><td>${x.coches.size}</td></tr>`).join('')}</tbody></table></div>
-      <div class="panel tabla"><h2>Detalle</h2><table>
-        <thead><tr><th>Inicio</th><th>Fin</th><th>Coche</th><th>Reparación</th><th>Mecánico</th><th>Trabajado</th><th>Asignado</th><th>Resultado</th></tr></thead>
-        <tbody>${rows.map(r => `<tr><td>${fmtFecha(r.inicio)}</td><td>${r.fin ? fmtFecha(r.fin) : 'En curso'}</td>
+    reps.forEach(r => { const x = Object.values(res).find(v => v.nombre === r.mecanico); if (x) x.reps++; });
+    $('#h-res').innerHTML = (turnos.length || reps.length) ? `
+      ${turnos.length ? `<div class="panel tabla"><h2>Resumen por mecánico</h2><table>
+        <thead><tr><th>Mecánico</th><th>Tiempo trabajado</th><th>Turnos</th><th>Coches</th><th>Reparaciones hechas</th></tr></thead>
+        <tbody>${Object.values(res).map(x => `<tr><td>${esc(x.nombre)}</td><td>${fmtMin(x.seg)}</td><td>${x.turnos}</td><td>${x.coches.size}</td><td>${x.reps}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${turnos.length ? `<div class="panel tabla"><h2>Turnos de trabajo</h2><table>
+        <thead><tr><th>Inicio</th><th>Fin</th><th>Coche</th><th>Mecánico</th><th>Trabajado</th><th>Asignado al coche</th><th>Reparaciones</th><th>Resultado</th></tr></thead>
+        <tbody>${turnos.map(r => `<tr><td>${fmtFecha(r.inicio)}</td><td>${r.fin ? fmtFecha(r.fin) : 'En curso'}</td>
+          <td>${esc(r.matricula)}<div class="suave">${esc(r.marca)} ${esc(r.modelo)}</div><div class="suave">Orden ${r.orden_id}, ${esc(r.tipo_revision)}</div></td>
+          <td>${esc(r.mecanico)}</td><td>${fmtMin((r.fin || ahora) - r.inicio)}</td><td>${fmtMin(r.seg_asignados)}</td><td>${r.reparaciones}</td>
+          <td>${MOT[r.motivo] || 'En curso'}${r.relevo ? `<div class="suave">Relevo: ${esc(r.relevo)}</div>` : ''}${r.nota ? `<div class="suave">${esc(r.nota)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${reps.length ? `<div class="panel tabla"><h2>Reparaciones hechas</h2><table>
+        <thead><tr><th>Fecha</th><th>Reparación</th><th>Coche</th><th>Mecánico</th><th>Minutos asignados</th></tr></thead>
+        <tbody>${reps.map(r => `<tr><td>${fmtFecha(r.finalizada)}</td><td>${esc(r.reparacion)}</td>
           <td>${esc(r.matricula)}<div class="suave">${esc(r.marca)} ${esc(r.modelo)}</div></td>
-          <td>${esc(r.tarea)}<div class="suave">Orden ${r.orden_id}, ${esc(r.tipo_revision)}</div></td>
-          <td>${esc(r.mecanico)}</td><td>${fmtMin((r.fin || ahora) - r.inicio)}</td><td>${fmtMin(r.seg_asignados)}</td>
-          <td>${MOT[r.motivo] || 'En curso'}${r.relevo ? `<div class="suave">Relevo: ${esc(r.relevo)}</div>` : ''}${r.nota ? `<div class="suave">${esc(r.nota)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div>`
+          <td>${esc(r.mecanico || '—')}</td><td>${esc(r.minutos)}</td></tr>`).join('')}</tbody></table></div>` : ''}`
       : '<div class="panel vacio"><p>No hay registros con esos filtros.</p></div>';
   };
   $('#h-buscar').onclick = accion(buscar);
+  const f = t => t ? new Date(t * 1000).toLocaleString('es-ES') : '';
+  const n = x => String(Math.round(x * 10) / 10).replace('.', ',');
   $('#h-csv').onclick = accion(async () => {
-    const rows = await leer();
-    const ahora = srvAhora();
-    const f = t => t ? new Date(t * 1000).toLocaleString('es-ES') : '';
-    const n = x => String(Math.round(x * 10) / 10).replace('.', ',');
-    const celda = v => { v = String(v ?? ''); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-    const lineas = [['Orden','Matrícula','Marca','Modelo','Revisión','Tarea','Min. asignados','Mecánico','Inicio','Fin','Min. trabajados','Motivo','Relevo','Nota']]
-      .concat(rows.map(r => [r.orden_id, r.matricula, r.marca, r.modelo, r.tipo_revision, r.tarea, n(r.seg_asignados / 60), r.mecanico,
-        f(r.inicio), f(r.fin), n(((r.fin || ahora) - r.inicio) / 60), MOT[r.motivo] || 'En curso', r.relevo, r.nota]));
-    const csv = '\ufeff' + lineas.map(l => l.map(celda).join(';')).join('\r\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'}));
-    a.download = 'historico-' + new Date().toISOString().slice(0,10) + '.csv'; a.click(); URL.revokeObjectURL(a.href);
+    const rows = await leerTurnos(), ahora = srvAhora();
+    descargarCSV('turnos', ['Orden','Matrícula','Marca','Modelo','Revisión','Mecánico','Inicio','Fin','Min. trabajados','Min. asignados al coche','Reparaciones hechas','Resultado','Relevo','Nota'],
+      rows.map(r => [r.orden_id, r.matricula, r.marca, r.modelo, r.tipo_revision, r.mecanico, f(r.inicio), f(r.fin),
+        n(((r.fin || ahora) - r.inicio) / 60), n(r.seg_asignados / 60), r.reparaciones, MOT[r.motivo] || 'En curso', r.relevo, r.nota]));
+  });
+  $('#h-csv2').onclick = accion(async () => {
+    const rows = await leerReps();
+    descargarCSV('reparaciones', ['Fecha','Reparación','Orden','Revisión','Matrícula','Marca','Modelo','Mecánico','Minutos asignados'],
+      rows.map(r => [f(r.finalizada), r.reparacion, r.orden_id, r.tipo_revision, r.matricula, r.marca, r.modelo, r.mecanico, n(r.minutos)]));
   });
   await buscar();
 }
@@ -824,7 +865,8 @@ async function mOrden(id){
   let o;
   try { o = await DB.orden(id); }
   catch(x){ toast(x.message, true); return mInicio(); }
-  const run = o.tareas.some(t => t.en_marcha);
+  if (o.estado !== 'abierta'){ toast('Este coche ya está cerrado'); return mInicio(); }
+  const run = o.en_marcha;
   const ck = !!o.checklist;
   app(`<p><button class="lnk" id="volver">Volver a mis coches</button></p>
   <div class="dos ${ck ? 'tareas-primero' : ''}">
@@ -837,49 +879,51 @@ async function mOrden(id){
       <div class="panel" id="ck-zona">
         <h2>Checklist ${o.tipo_checklist === 'basico' ? 'básico' : 'completo'}</h2>
         ${ck ? verChecklist(o.tipo_checklist, o.checklist) + '<p class="suave" style="margin-top:8px">Solo el administrador puede modificarlo.</p>'
-          : `<p>Revisa cada punto antes de empezar. Una vez guardado no podrás cambiarlo.</p>${formChecklist(o.tipo_checklist)}
+          : `<p>Revisa cada punto antes de empezar. Las reparaciones aparecerán cuando lo guardes.</p>${formChecklist(o.tipo_checklist)}
              <button class="btn pri" id="ck-guardar" style="margin-top:12px">Guardar checklist</button>`}
       </div>
     </section>
-    <section class="pila">
-      <h2>Mis tareas</h2>
-      ${o.tareas.map(t => tareaHTML(t, 'mec', ck)).join('')}
-    </section>
+    ${ck ? `<section class="pila">${bloqueTrabajo(o, 'mec')}</section>` : ''}
   </div>`);
   $('#volver').onclick = () => mInicio();
   if (!ck){
     $('#ck-guardar').onclick = () => {
       let b;
       try { b = leerChecklist($('#ck-zona')); } catch(x){ return toast(x.message, true); }
-      dialogo('<h2>Guardar checklist</h2><p>Se guardará con la fecha y hora actuales y ya no podrás editarlo.</p>',
-        'Guardar', async () => { await rpc('hacer_checklist', {p_orden: id, p_datos: b}); toast('Checklist guardado'); mOrden(id); });
+      dialogo(`<h2>¿Seguro que quieres guardarlo?</h2>
+        <p>Se guardará con la fecha y hora actuales y ya no podrás editarlo, solo el administrador.</p>
+        <p><strong>Al guardarlo empezarán las reparaciones:</strong> el tiempo del coche se pondrá en marcha de forma automática.</p>`,
+        'Guardar y empezar', async () => {
+          await rpc('hacer_checklist', {p_orden: id, p_datos: b});
+          try { await rpc('iniciar_orden', {p_orden: id}); toast('Checklist guardado. El tiempo está en marcha'); }
+          catch(x){ toast('Checklist guardado, pero no se pudo arrancar el tiempo: ' + x.message, true); }
+          mOrden(id);
+        });
     };
   }
-  on('[data-empezar]', 'click', accion(async (e, b) => {
-    await rpc('iniciar_tarea', {p_id: +b.dataset.empezar}); toast('Tarea en marcha'); mOrden(id);
+  marcarReparaciones(() => mOrden(id));
+  on('[data-empezar]', 'click', accion(async () => {
+    await rpc('iniciar_orden', {p_orden: id}); toast('Tiempo en marcha'); mOrden(id);
   }));
-  on('[data-fin]', 'click', e => {
-    const tid = +e.currentTarget.dataset.fin;
-    dialogo('<h2>Finalizar tarea</h2><p>La tarea quedará terminada para todos los mecánicos que estén en ella. No se puede deshacer.</p>',
-      'Finalizar', async () => { await rpc('terminar_tarea', {p_id: tid, p_motivo: 'finalizada'}); toast('Tarea finalizada'); mOrden(id); }, 'ok');
+  on('[data-fin]', 'click', () => {
+    dialogo('<h2>Finalizar el trabajo</h2><p>El coche quedará terminado y se parará el tiempo para todos los que estén en él. No se puede deshacer.</p>',
+      'Finalizar', async () => { await rpc('terminar_orden', {p_orden: id, p_motivo: 'finalizada'}); toast('Trabajo finalizado'); mInicio(); }, 'ok');
   });
-  on('[data-turno]', 'click', async e => {
-    const tid = +e.currentTarget.dataset.turno;
+  on('[data-turno]', 'click', async () => {
     const comp = await DB.companeros().catch(() => []);
     dialogo(`<h2>Fin de turno</h2>
-      <p>La tarea queda a medias y quien la continúe recibirá el tiempo restante.</p>
+      <p>El coche queda a medias y quien lo continúe recibirá el tiempo restante y las reparaciones sin marcar.</p>
       <div class="pila" style="margin-top:10px">
-        <label>¿Quién la continúa?<select id="d-rel"><option value="">Los ya asignados</option>
+        <label>¿Quién continúa?<select id="d-rel"><option value="">Los ya asignados</option>
           ${comp.map(c => `<option value="${c.id}">${esc(c.nombre)}</option>`).join('')}</select></label>
         <label>Nota para el relevo<textarea id="d-nota" rows="3" placeholder="Qué has hecho y qué falta"></textarea></label>
       </div>`, 'Terminar mi turno', async d => {
-        await rpc('terminar_tarea', {p_id: tid, p_motivo: 'fin_turno',
+        await rpc('terminar_orden', {p_orden: id, p_motivo: 'fin_turno',
           p_relevo: d.querySelector('#d-rel').value || null, p_nota: d.querySelector('#d-nota').value});
-        toast('Turno cerrado en esta tarea'); mOrden(id);
+        toast('Turno cerrado'); mInicio();
       });
   });
   st.refresh = ck ? () => mOrden(id) : null;
-  if (o.estado !== 'abierta'){ toast('Esta orden ya está cerrada'); return mInicio(); }
 }
 
 /* ═════════ arranque ═════════ */
