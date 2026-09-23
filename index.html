@@ -74,6 +74,7 @@ legend{font-size:.85rem;color:var(--suave);padding:0 4px}
 @keyframes mover{to{background-position:28.28px 0}}
 .cd{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-weight:700;font-size:2.6rem;font-variant-numeric:tabular-nums;line-height:1;margin-top:4px}
 .cd.neg{color:var(--rojo)}
+.cd.oculto{color:var(--linea);letter-spacing:.05em}
 .derecha{text-align:right}
 .nota-relevo{background:#FFF6D6;border-left:4px solid var(--amar);padding:6px 10px;margin-top:8px;font-size:.92rem}
 .ck-item{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--linea)}
@@ -442,6 +443,8 @@ function tareaHTML(t, modo, ckHecho){
     acc = `<button class="btn sec" data-editar="${t.id}">Editar</button>` +
           (!t.tiene_sesiones ? `<button class="btn peligro" data-borrar="${t.id}">Eliminar</button>` : '');
   }
+  // El mecánico no ve el tiempo hasta que empieza la tarea
+  const verTiempo = modo === 'admin' || mia || t.estado === 'finalizada';
   const r = t.relevo;
   return `<article class="tarea ${run ? 'run' : ''}">
     <div class="fila entre" style="align-items:flex-start;flex-wrap:nowrap">
@@ -454,8 +457,11 @@ function tareaHTML(t, modo, ckHecho){
       </div>
       <div class="derecha">
         ${badge(t.estado)}
-        ${t.estado === 'finalizada' ? '' : `<div class="cd" data-rest="${t.restante}" data-run="${run ? 1 : 0}" data-t="${Date.now()}">${fmtCD(t.restante)}</div>`}
-        <div class="suave">de ${fmtMin(t.seg_asignados)}</div>
+        ${verTiempo
+          ? `${t.estado === 'finalizada' ? '' : `<div class="cd" data-rest="${t.restante}" data-run="${run ? 1 : 0}" data-t="${Date.now()}">${fmtCD(t.restante)}</div>`}
+             <div class="suave">de ${fmtMin(t.seg_asignados)}</div>`
+          : `<div class="cd oculto" aria-hidden="true">--:--</div>
+             <div class="suave">Al empezar</div>`}
       </div>
     </div>
     ${r && t.estado !== 'finalizada' ? `<div class="nota-relevo">Relevo de ${esc(r.de)}${r.para ? ' para ' + esc(r.para) : ''}, ${fmtFecha(r.fin)}${r.nota ? ': ' + esc(r.nota) : ''}</div>` : ''}
@@ -463,7 +469,7 @@ function tareaHTML(t, modo, ckHecho){
   </article>`;
 }
 setInterval(() => {
-  document.querySelectorAll('.cd').forEach(el => {
+  document.querySelectorAll('.cd[data-rest]').forEach(el => {
     const r = +el.dataset.rest - (el.dataset.run === '1' ? (Date.now() - +el.dataset.t) / 1000 : 0);
     el.textContent = fmtCD(r); el.classList.toggle('neg', r < 0);
   });
