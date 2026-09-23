@@ -81,6 +81,13 @@ legend{font-size:.85rem;color:var(--suave);padding:0 4px}
 .chk-rep{display:flex;gap:10px;align-items:flex-start;color:var(--tinta);font-size:1rem;margin:0;flex:1 1 220px;cursor:pointer}
 .chk-rep input{width:24px;height:24px;margin:2px 0 0;flex:0 0 auto;accent-color:var(--verde)}
 .chk-rep input:disabled{cursor:not-allowed}
+#avisos{position:fixed;top:78px;right:12px;width:min(340px,calc(100vw - 24px));display:flex;flex-direction:column;gap:10px;z-index:15}
+.aviso{background:#fff;border:1px solid var(--linea);border-left:5px solid var(--azul);border-radius:6px;padding:12px;box-shadow:0 6px 20px rgba(27,39,51,.18);animation:entra .25s ease-out}
+.aviso.a-incidencia{border-left-color:var(--rojo)}
+.aviso p{margin:6px 0}
+@keyframes entra{from{opacity:0;transform:translateX(20px)}}
+.aviso-fila.leido{opacity:.6}
+nav .pin{font-style:normal;display:inline-block;min-width:20px;margin-left:6px;padding:0 5px;border-radius:99px;background:var(--rojo);color:#fff;font-size:.78rem;text-align:center}
 .derecha{text-align:right}
 .nota-relevo{background:#FFF6D6;border-left:4px solid var(--amar);padding:6px 10px;margin-top:8px;font-size:.92rem}
 .ck-item{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--linea)}
@@ -117,6 +124,7 @@ dialog::backdrop{background:rgba(27,39,51,.55)}
 <header id="top" hidden><div class="barra"><div class="logo" id="logo"></div><nav id="nav"></nav></div></header>
 <main id="app"></main>
 <dialog id="dlg"></dialog>
+<div id="avisos" aria-live="polite"></div>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -184,7 +192,8 @@ const uno1 = x => Array.isArray(x) ? (x[0] || null) : x;
 function normTarea(t){
   return {
     id: t.id, orden_id: t.orden_id, titulo: t.titulo, descripcion: t.descripcion, estado: t.estado, pos: t.pos,
-    seg_asignados: t.seg_asignados, finalizada: ts(t.finalizada),
+    seg_asignados: t.seg_asignados, seg_reales: t.seg_reales == null ? null : Number(t.seg_reales),
+    finalizada: ts(t.finalizada),
     finalizada_por: t.finalizada_por ? nom(t.finalizada_por) : null,
     mecanicos: (t.tarea_mecanicos || []).map(m => ({id: m.mecanico_id, nombre: nom(m.mecanico_id)})).sort((a, b) => a.nombre.localeCompare(b.nombre)),
   };
@@ -193,25 +202,40 @@ function normOrden(o){
   const ahora = srvAhora();
   const tareas = (o.tareas || []).map(normTarea).sort((a, b) => a.pos - b.pos || a.id - b.id);
   const ses = o.orden_sesiones || [];
-  const ck = uno1(o.checklist);
-  const consumido = Number(o.seg_consumidos) + (o.en_marcha_desde ? ahora - ts(o.en_marcha_desde) : 0);
+  const cks = [].concat(o.checklists || []);
+  const normCk = k => k ? {creado: ts(k.creado), realizado_por: nom(k.realizado_por), modificado: ts(k.modificado),
+      modificado_por: k.modificado_por ? nom(k.modificado_por) : null, datos: k.datos} : null;
+  const ck = normCk(cks.find(k => (k.tipo || 'inicial') === 'inicial'));
+  const ckFinal = normCk(cks.find(k => k.tipo === 'final'));
+  const enMarcha = ts(o.en_marcha_desde);
+  const paso = enMarcha ? ahora - enMarcha : 0;
+  const consumido = Number(o.seg_consumidos) + paso;         // tiempo del tramo actual
   const seg_total = tareas.reduce((a, t) => a + t.seg_asignados, 0);
+  const seg_pendiente = tareas.filter(t => t.estado !== 'finalizada').reduce((a, t) => a + t.seg_asignados, 0);
   const rel = ses.filter(x => x.motivo === 'fin_turno').sort((a, b) => ts(b.fin) - ts(a.fin))[0];
   return {
     id: o.id, estado: o.estado, tipo_revision: o.tipo_revision, tipo_checklist: o.tipo_checklist, notas: o.notas,
     creado: ts(o.creado), cerrado: ts(o.cerrado), coche: uno1(o.coche),
-    checklist: ck ? {creado: ts(ck.creado), realizado_por: nom(ck.realizado_por), modificado: ts(ck.modificado),
-                     modificado_por: ck.modificado_por ? nom(ck.modificado_por) : null, datos: ck.datos} : null,
-    tareas, seg_total, consumido: Math.round(consumido), restante: Math.round(seg_total - consumido),
+    checklist: ck, checklist_final: ckFinal,
+    tareas, seg_total, seg_pendiente, seg_informe: seg_total + SEG_CHECKLISTS,
+    consumido: Math.round(consumido), restante: Math.round(seg_pendiente - consumido),
+    seg_reales: Math.round(Number(o.seg_totales || 0) + paso),
     en_marcha: !!o.en_marcha_desde, tiene_sesiones: ses.length > 0,
     activos: ses.filter(x => !x.fin).map(x => ({id: x.mecanico_id, nombre: nom(x.mecanico_id)})),
     relevo: rel ? {de: nom(rel.mecanico_id), para: rel.relevo_id ? nom(rel.relevo_id) : null, nota: rel.nota, fin: ts(rel.fin)} : null,
     n_tareas: tareas.length, n_finalizadas: tareas.filter(t => t.estado === 'finalizada').length,
   };
 }
-const SEL_ORDEN = '*, coche:coches(*), checklist:checklists(*), tareas(*, tarea_mecanicos(mecanico_id)), orden_sesiones(id,mecanico_id,inicio,fin,motivo,nota,relevo_id)';
+const SEL_ORDEN = '*, coche:coches(*), checklists(*), tareas(*, tarea_mecanicos(mecanico_id)), orden_sesiones(id,mecanico_id,inicio,fin,motivo,nota,relevo_id)';
+const SEG_CHECKLISTS = 12 * 60;   // los dos checklists cuentan 12 min en los informes
 
 const DB = {
+  async avisos(soloNuevos){
+    let q = sb.from('avisos').select('*, ordenes(coches(matricula))').order('creado', {ascending: false}).limit(50);
+    if (soloNuevos) q = q.is('leido', null);
+    return (await ok(q)).map(a => ({...a, creado: ts(a.creado), leido: ts(a.leido),
+      mecanico: nom(a.mecanico_id), matricula: uno1(uno1(a.ordenes)?.coches)?.matricula || ''}));
+  },
   async ordenes(estado){
     let q = sb.from('ordenes').select(SEL_ORDEN).order('creado', {ascending: false}).limit(200);
     if (estado !== 'todas') q = q.eq('estado', estado);
@@ -321,20 +345,37 @@ function dialogo(html, okTxt, onOk, okClase='pri'){
 
 /* ═════════ cabecera y sesión ═════════ */
 const MENU_ADMIN = [['ordenes','Órdenes',()=>vOrdenes()],['nueva','Nueva orden',()=>vNuevaOrden()],
-  ['mecanicos','Mecánicos',()=>vMecanicos()],['coches','Coches',()=>vCoches()],['historico','Histórico',()=>vHistorico()]];
+  ['avisos','Avisos',()=>vAvisos()],['mecanicos','Mecánicos',()=>vMecanicos()],
+  ['coches','Coches',()=>vCoches()],['historico','Histórico',()=>vHistorico()]];
 const MENU_MEC = [['inicio','Mis coches',()=>mInicio()]];
 function cabecera(){
   $('#top').hidden = false;
   $('#logo').innerHTML = `${esc(yo.taller)}<small>${esc(yo.nombre)}, ${yo.rol === 'admin' ? 'administrador' : 'mecánico'}</small>`;
   const menu = yo.rol === 'admin' ? MENU_ADMIN : MENU_MEC;
-  $('#nav').innerHTML = menu.map(([k,t]) => `<button data-k="${k}">${t}</button>`).join('') + `<button data-k="salir">Salir</button>`;
+  $('#nav').innerHTML = menu.map(([k,t]) => `<button data-k="${k}">${t}${k === 'avisos' ? '<i class="pin" hidden></i>' : ''}</button>`).join('') + `<button data-k="salir">Salir</button>`;
   $('#nav').querySelectorAll('button').forEach(b => b.onclick = () => {
-    if (b.dataset.k === 'salir') return salir(true);
+    if (b.dataset.k === 'salir') return salirConAviso();
     menu.find(m => m[0] === b.dataset.k)[2]().catch(x => toast(x.message, true));
   });
 }
 function marcar(k){
   $('#nav').querySelectorAll('button').forEach(b => b.dataset.k === k ? b.setAttribute('aria-current','page') : b.removeAttribute('aria-current'));
+}
+
+async function salirConAviso(){
+  let abierta = null;
+  if (yo?.rol === 'mecanico'){
+    try {
+      const r = await ok(sb.from('orden_sesiones').select('orden_id, ordenes(coches(matricula))').is('fin', null).limit(1));
+      abierta = r?.[0] || null;
+    } catch(e){}
+  }
+  if (!abierta) return salir(true);
+  const mat = uno1(uno1(abierta.ordenes)?.coches)?.matricula || 'un coche';
+  dialogo(`<h2>Tienes trabajo en marcha</h2>
+    <p>Sigues trabajando en <strong>${esc(mat)}</strong>. <strong>El tiempo seguirá corriendo aunque salgas</strong>, también con el navegador cerrado.</p>
+    <p>Si has terminado por hoy, vuelve al coche y marca <strong>Fin de turno</strong>.</p>`,
+    'Salir de todas formas', async () => { await salir(true); }, 'peligro');
 }
 
 async function salir(avisar){
@@ -389,6 +430,7 @@ async function arrancar(){
   PLANT = pl;
   cabecera();
   yo.rol === 'admin' ? await vOrdenes() : await mInicio();
+  contarAvisos();
 }
 
 /* ═════════ checklist ═════════ */
@@ -417,6 +459,25 @@ function leerChecklist(root){
   const km = root.querySelector('[name=ck-km]').value;
   return {items, km: km ? +km : null, observaciones: root.querySelector('[name=ck-obs]').value};
 }
+function panelChecklist(o, tipo, modo, id){
+  const ck = tipo === 'final' ? o.checklist_final : o.checklist;
+  const plantilla = tipo === 'final' ? 'final' : o.tipo_checklist;
+  const titulo = tipo === 'final' ? 'Control final' : `Checklist ${o.tipo_checklist === 'basico' ? 'básico' : 'completo'}`;
+  const todas = o.n_tareas > 0 && o.n_finalizadas === o.n_tareas;
+  let cuerpo;
+  if (ck) cuerpo = verChecklist(plantilla, ck) + (modo === 'mec' ? '<p class="suave" style="margin-top:8px">Solo el administrador puede modificarlo.</p>' : '');
+  else if (modo === 'admin') cuerpo = `<p>Pendiente. Lo hará el mecánico${tipo === 'final' ? ' al terminar las reparaciones' : ' antes de empezar'}.</p>
+    <button class="btn sec" data-ck-hacer="${tipo}">Hacerlo yo</button>`;
+  else if (tipo === 'final' && !todas) cuerpo = '<p>Se hace cuando estén todas las reparaciones marcadas.</p>';
+  else cuerpo = `<p>${tipo === 'final' ? 'Repasa el coche antes de entregarlo.' : 'Revisa cada punto antes de empezar. Las reparaciones aparecerán cuando lo guardes.'}</p>
+    ${formChecklist(plantilla)}
+    <button class="btn pri" data-ck-guardar="${tipo}" style="margin-top:12px">Guardar ${tipo === 'final' ? 'control final' : 'checklist'}</button>`;
+  return `<div class="panel" id="ck-${tipo}">
+    <div class="fila entre"><h2 style="margin:0">${titulo}</h2>
+      ${ck && modo === 'admin' ? `<button class="btn sec" data-ck-editar="${tipo}">Editar</button>` : ''}</div>
+    <div class="ck-cuerpo" style="margin-top:10px">${cuerpo}</div>
+  </div>`;
+}
 function selloChecklist(ck){
   return `<div class="sello">
     <div>Realizado el <strong>${fmtFecha(ck.creado)}</strong> por ${esc(ck.realizado_por)}</div>
@@ -441,6 +502,7 @@ function bloqueTrabajo(o, modo){
   const trabajando = modo === 'mec' && o.activos.some(a => a.id === yo.id);
   const verTiempo = modo === 'admin' || trabajando || !abierta;   // el mecánico lo ve al empezar
   const puedoMarcar = abierta && (modo === 'admin' || trabajando);
+  const todas = o.n_tareas > 0 && o.n_finalizadas === o.n_tareas;
   const filas = o.tareas.map(t => {
     const mia = modo === 'admin' || t.mecanicos.some(m => m.id === yo.id);
     const hecha = t.estado === 'finalizada';
@@ -450,20 +512,27 @@ function bloqueTrabajo(o, modo){
         <span><strong>${esc(t.titulo)}</strong>
           ${t.descripcion ? `<br>${esc(t.descripcion)}` : ''}
           <br><span class="suave">${esc(t.mecanicos.map(m => m.nombre).join(', ') || 'sin asignar')}${modo === 'admin' ? `, ${fmtMin(t.seg_asignados)}` : ''}</span>
-          ${hecha ? `<br><span class="suave">Hecha el ${fmtFecha(t.finalizada)}${t.finalizada_por ? ', por ' + esc(t.finalizada_por) : ''}</span>` : ''}
+          ${hecha ? `<br><span class="suave">Hecha el ${fmtFecha(t.finalizada)}${t.finalizada_por ? ', por ' + esc(t.finalizada_por) : ''}${modo === 'admin' && t.seg_reales != null ? `, en ${fmtMin(t.seg_reales)}` : ''}</span>` : ''}
         </span>
       </label>
-      ${modo === 'admin' ? `<div class="fila"><button class="btn sec" data-editar="${t.id}">Editar</button>
-        ${hecha ? '' : `<button class="btn peligro" data-borrar="${t.id}">Eliminar</button>`}</div>` : ''}
+      <div class="fila">
+        ${modo === 'mec' && mia && !hecha && trabajando ? `<button class="btn sec" data-incidencia="${t.id}">Incidencia</button>` : ''}
+        ${modo === 'admin' ? `<button class="btn sec" data-editar="${t.id}">Editar</button>
+          ${hecha ? '' : `<button class="btn peligro" data-borrar="${t.id}">Eliminar</button>`}` : ''}
+      </div>
     </div>`;
   }).join('') || '<p>Sin reparaciones.</p>';
   let acc = '';
   if (modo === 'mec' && abierta){
-    acc = trabajando
-      ? `<button class="btn ok" data-fin="${o.id}" ${o.n_finalizadas === o.n_tareas && o.n_tareas ? '' : 'disabled'}>Finalizar trabajo</button>
-         <button class="btn sec" data-turno="${o.id}">Fin de turno</button>
-         ${o.n_finalizadas === o.n_tareas && o.n_tareas ? '' : '<span class="suave">Marca todas las reparaciones para poder terminar</span>'}`
-      : `<button class="btn pri" data-empezar="${o.id}">${run ? 'Unirme al trabajo' : o.tiene_sesiones ? 'Continuar trabajo' : 'Empezar trabajo'}</button>`;
+    if (trabajando){
+      const puedeTerminar = todas && o.checklist_final;
+      acc = `<button class="btn ok" data-fin="${o.id}" ${puedeTerminar ? '' : 'disabled'}>Finalizar trabajo</button>
+             <button class="btn sec" data-turno="${o.id}">Fin de turno</button>
+             <button class="btn sec" data-nota="${o.id}">Nota al taller</button>
+             ${puedeTerminar ? '' : `<span class="suave">${todas ? 'Haz el control final para poder terminar' : 'Marca todas las reparaciones'}</span>`}`;
+    } else {
+      acc = `<button class="btn pri" data-empezar="${o.id}">${run ? 'Unirme al trabajo' : o.tiene_sesiones ? 'Continuar trabajo' : 'Empezar trabajo'}</button>`;
+    }
   }
   return `<article class="panel tarea${run ? ' run' : ''}">
     <div class="fila entre" style="align-items:flex-start;flex-wrap:nowrap">
@@ -475,7 +544,7 @@ function bloqueTrabajo(o, modo){
       <div class="derecha">
         ${verTiempo
           ? `<div class="cd" data-rest="${o.restante}" data-run="${run ? 1 : 0}" data-t="${Date.now()}">${fmtCD(o.restante)}</div>
-             <div class="suave">de ${fmtMin(o.seg_total)} en total</div>`
+             <div class="suave">${todas ? 'todo marcado' : `para ${fmtMin(o.seg_pendiente)} pendientes`}</div>`
           : `<div class="cd oculto" aria-hidden="true">--:--</div><div class="suave">Al empezar</div>`}
       </div>
     </div>
@@ -484,6 +553,28 @@ function bloqueTrabajo(o, modo){
     ${modo === 'admin' ? `<div class="fila" style="margin-top:12px"><button class="btn pri" id="t-nueva">Añadir reparación</button></div>` : ''}
     ${acc ? `<div class="fila" style="margin-top:12px">${acc}</div>` : ''}
   </article>`;
+}
+function accionesMecanico(o, recargar){
+  on('[data-incidencia]', 'click', e => {
+    const tid = +e.currentTarget.dataset.incidencia;
+    const t = o.tareas.find(x => x.id === tid);
+    dialogo(`<h2>Incidencia en «${esc(t.titulo)}»</h2>
+      <p>Se <strong>parará el tiempo</strong> del coche y le llegará un aviso al administrador. Podrás continuar cuando se resuelva.</p>
+      <label style="margin-top:10px">¿Qué ha pasado?<textarea id="d-nota" rows="4" placeholder="Falta una pieza, el tornillo está pasado de rosca..."></textarea></label>`,
+      'Enviar y parar el tiempo', async d => {
+        await rpc('crear_incidencia', {p_tarea: tid, p_nota: d.querySelector('#d-nota').value});
+        toast('Incidencia enviada. El tiempo está parado'); recargar();
+      }, 'peligro');
+  });
+  on('[data-nota]', 'click', () => {
+    dialogo(`<h2>Nota al taller</h2>
+      <p>Le llegará un aviso al administrador. El tiempo sigue corriendo.</p>
+      <label style="margin-top:10px">Nota<textarea id="d-nota" rows="4"></textarea></label>`,
+      'Enviar', async d => {
+        await rpc('crear_nota', {p_orden: o.id, p_texto: d.querySelector('#d-nota').value});
+        toast('Nota enviada');
+      });
+  });
 }
 function marcarReparaciones(recargar){
   on('[data-marcar]', 'change', async e => {
@@ -547,26 +638,34 @@ async function vOrden(id){
         <label style="margin-top:10px">Tipo de revisión<input id="o-tipo" value="${esc(o.tipo_revision)}"></label>
         <label style="margin-top:8px">Notas para el mecánico<textarea id="o-notas" rows="2">${esc(o.notas || '')}</textarea></label>
         <p class="suave">Creada el ${fmtFecha(o.creado)}${o.cerrado ? `, cerrada el ${fmtFecha(o.cerrado)}` : ''}</p>
-        <p class="suave">Tiempo total asignado: ${fmtMin(o.seg_total)}, consumido ${fmtMin(o.consumido)}</p>
+        <p class="suave">Reparaciones: ${fmtMin(o.seg_total)} asignados. Con los dos checklists, ${fmtMin(o.seg_informe)} para informes.</p>
+        <p class="suave">Tiempo real trabajado: ${fmtMin(o.seg_reales)}</p>
         <div class="fila" style="margin-top:10px">
           <button class="btn sec" id="o-guardar">Guardar datos</button>
           ${o.estado === 'abierta'
-            ? `<button class="btn ok" data-estado="finalizada">Cerrar orden</button><button class="btn peligro" data-estado="cancelada">Cancelar orden</button>`
+            ? `${o.en_marcha ? '<button class="btn sec" id="o-parar">Parar el tiempo</button>' : ''}
+               <button class="btn ok" data-estado="finalizada">Cerrar orden</button><button class="btn peligro" data-estado="cancelada">Cancelar orden</button>`
             : `<button class="btn sec" data-estado="abierta">Reabrir orden</button>`}
         </div>
       </div>
     </section>
     <section class="pila">
-      <div class="panel" id="ck-zona">
-        <div class="fila entre"><h2 style="margin:0">Checklist ${o.tipo_checklist === 'basico' ? 'básico' : 'completo'}</h2>
-          ${o.checklist ? '<button class="btn sec" id="ck-editar">Editar checklist</button>' : ''}</div>
-        <div id="ck-cuerpo" style="margin-top:10px">${o.checklist ? verChecklist(o.tipo_checklist, o.checklist)
-          : `<p>Pendiente. Lo hará el mecánico antes de empezar.</p><button class="btn sec" id="ck-hacer">Hacerlo yo</button>`}</div>
-      </div>
+      ${panelChecklist(o, 'inicial', 'admin', id)}
       ${bloqueTrabajo(o, 'admin')}
+      ${panelChecklist(o, 'final', 'admin', id)}
     </section>
   </div>`);
   $('#volver').onclick = () => vOrdenes();
+  $('#o-parar')?.addEventListener('click', () => {
+    dialogo(`<h2>Parar el tiempo</h2>
+      <p>El coche queda a medias, con su tiempo restante, y la orden sigue abierta. Cualquier mecánico asignado puede retomarlo.</p>
+      <p class="suave">Útil si alguien se fue sin marcar fin de turno.</p>
+      <label style="margin-top:10px">Motivo (se guarda en el histórico)<input id="d-nota" placeholder="Se fue sin marcar fin de turno"></label>`,
+      'Parar el tiempo', async d => {
+        await rpc('parar_tiempo', {p_orden: id, p_nota: d.querySelector('#d-nota').value});
+        toast('Tiempo parado'); vOrden(id);
+      });
+  });
   $('#o-guardar').onclick = accion(async () => { await rpc('editar_orden', {p_id: id, p_tipo: $('#o-tipo').value, p_notas: $('#o-notas').value}); toast('Datos guardados'); });
   on('[data-estado]', 'click', e => {
     const est = e.currentTarget.dataset.estado;
@@ -574,20 +673,22 @@ async function vOrden(id){
     dialogo(`<h2>${est === 'abierta' ? 'Reabrir' : est === 'finalizada' ? 'Cerrar' : 'Cancelar'} orden</h2><p>${txt}</p>`, 'Confirmar',
       async () => { await rpc('cambiar_estado_orden', {p_id: id, p_estado: est}); toast('Orden actualizada'); vOrden(id); }, est === 'cancelada' ? 'peligro' : 'pri');
   });
-  const editarCk = (nuevo) => {
+  const editarCk = (tipo, nuevo) => {
     st.refresh = null;
-    $('#ck-cuerpo').innerHTML = `${o.checklist ? selloChecklist(o.checklist) : ''}${formChecklist(o.tipo_checklist, o.checklist?.datos)}
-      <div class="fila" style="margin-top:12px"><button class="btn pri" id="ck-guardar">Guardar checklist</button><button class="btn sec" id="ck-cancelar">Cancelar</button></div>`;
-    $('#ck-editar')?.remove();
-    $('#ck-cancelar').onclick = () => vOrden(id);
-    $('#ck-guardar').onclick = accion(async () => {
-      const b = leerChecklist($('#ck-cuerpo'));
-      await rpc(nuevo ? 'hacer_checklist' : 'modificar_checklist', {p_orden: id, p_datos: b});
-      toast(nuevo ? 'Checklist guardado' : 'Checklist modificado'); vOrden(id);
+    const ck = tipo === 'final' ? o.checklist_final : o.checklist;
+    const zona = $('#ck-' + tipo), cuerpo = zona.querySelector('.ck-cuerpo');
+    cuerpo.innerHTML = `${ck ? selloChecklist(ck) : ''}${formChecklist(tipo === 'final' ? 'final' : o.tipo_checklist, ck?.datos)}
+      <div class="fila" style="margin-top:12px"><button class="btn pri" data-g>Guardar</button><button class="btn sec" data-c>Cancelar</button></div>`;
+    zona.querySelector('[data-ck-editar]')?.remove();
+    cuerpo.querySelector('[data-c]').onclick = () => vOrden(id);
+    cuerpo.querySelector('[data-g]').onclick = accion(async () => {
+      const b = leerChecklist(cuerpo);
+      await rpc(nuevo ? 'hacer_checklist' : 'modificar_checklist', {p_orden: id, p_datos: b, p_tipo: tipo});
+      toast('Checklist guardado'); vOrden(id);
     });
   };
-  $('#ck-editar')?.addEventListener('click', () => editarCk(false));
-  $('#ck-hacer')?.addEventListener('click', () => editarCk(true));
+  on('[data-ck-editar]', 'click', e => editarCk(e.currentTarget.dataset.ckEditar, false));
+  on('[data-ck-hacer]', 'click', e => editarCk(e.currentTarget.dataset.ckHacer, true));
   const activos = mecs.filter(m => m.activo);
   const dlgTarea = t => dialogo(`<h2>${t ? 'Editar reparación' : 'Nueva reparación'}</h2>
     <div class="pila">
@@ -773,6 +874,66 @@ async function vCoches(){
   on('[data-c]', 'click', e => dlg(coches.find(c => c.id === +e.currentTarget.dataset.c)));
 }
 
+/* ═════════ ADMIN: avisos ═════════ */
+const TIPO_AVISO = {incidencia:'Incidencia', nota:'Nota', fin_turno:'Fin de turno'};
+const avisosVistos = new Set();
+function cajaAviso(a){
+  const caja = document.createElement('div');
+  caja.className = 'aviso a-' + a.tipo;
+  caja.innerHTML = `<div class="fila entre"><strong>${TIPO_AVISO[a.tipo]}</strong><span class="suave">${fmtFecha(a.creado)}</span></div>
+    <p>${esc(a.texto)}</p>
+    <p class="suave">${esc(a.mecanico)}${a.matricula ? ', ' + esc(a.matricula) : ''}${a.tipo === 'incidencia' ? '. El tiempo de ese coche está parado' : ''}</p>
+    <div class="fila"><button class="btn sec" data-ver>Ver coche</button><button class="btn sec" data-ok>Marcar leído</button></div>`;
+  const quitar = () => caja.remove();
+  caja.querySelector('[data-ver]').onclick = async () => {
+    quitar();
+    try { await rpc('marcar_avisos', {p_ids: [a.id]}); } catch(e){}
+    vOrden(a.orden_id).catch(x => toast(x.message, true));
+    contarAvisos();
+  };
+  caja.querySelector('[data-ok]').onclick = async () => {
+    quitar();
+    try { await rpc('marcar_avisos', {p_ids: [a.id]}); contarAvisos(); } catch(x){ toast(x.message, true); }
+  };
+  $('#avisos').appendChild(caja);
+  setTimeout(quitar, 60000);   // la caja se va sola al minuto; el aviso sigue sin leer
+}
+async function contarAvisos(){
+  if (yo?.rol !== 'admin') return;
+  try {
+    const nuevos = await DB.avisos(true);
+    const pin = $('#nav .pin');
+    if (pin){ pin.hidden = !nuevos.length; pin.textContent = nuevos.length; }
+    nuevos.slice(0, 3).forEach(a => { if (!avisosVistos.has(a.id)){ avisosVistos.add(a.id); cajaAviso(a); } });
+    nuevos.forEach(a => avisosVistos.add(a.id));
+  } catch(e){}
+}
+setInterval(contarAvisos, 30000);
+
+async function vAvisos(){
+  marcar('avisos');
+  const avisos = await DB.avisos(false);
+  const sinLeer = avisos.filter(a => !a.leido).length;
+  app(`<div class="fila cab"><h1>Avisos</h1>
+    ${sinLeer ? '<button class="btn sec" id="a-todos">Marcar todos como leídos</button>' : ''}</div>
+    ${avisos.length ? `<div class="pila">${avisos.map(a => `<div class="panel aviso-fila${a.leido ? ' leido' : ''}">
+      <div class="fila entre"><div><span class="estado e-${a.tipo === 'incidencia' ? 'cancelada' : 'abierta'}">${TIPO_AVISO[a.tipo]}</span>
+        <strong style="margin-left:8px">${esc(a.mecanico)}</strong></div>
+        <span class="suave">${fmtFecha(a.creado)}</span></div>
+      <p>${esc(a.texto)}</p>
+      <div class="fila entre">
+        <span class="suave">${esc(a.matricula)}, orden ${a.orden_id}${a.leido ? `. Leído el ${fmtFecha(a.leido)}` : ''}</span>
+        <span class="fila"><button class="btn sec" data-ir="${a.orden_id}">Ver coche</button>
+          ${a.leido ? '' : `<button class="btn sec" data-leer="${a.id}">Marcar leído</button>`}</span>
+      </div>
+    </div>`).join('')}</div>`
+    : '<div class="panel vacio"><p>No hay avisos. Aquí aparecerán las incidencias y notas que manden los mecánicos.</p></div>'}`);
+  $('#a-todos')?.addEventListener('click', accion(async () => { await rpc('marcar_avisos', {p_ids: null}); contarAvisos(); vAvisos(); }));
+  on('[data-leer]', 'click', accion(async (e, b) => { await rpc('marcar_avisos', {p_ids: [+b.dataset.leer]}); contarAvisos(); vAvisos(); }));
+  on('[data-ir]', 'click', e => vOrden(+e.currentTarget.dataset.ir));
+  st.refresh = vAvisos;
+}
+
 /* ═════════ ADMIN: histórico ═════════ */
 const MOT = {finalizada:'Trabajo finalizado', fin_turno:'Fin de turno', cerrada_admin:'Cerrada por admin'};
 function descargarCSV(nombre, cabeceras, filas){
@@ -820,16 +981,16 @@ async function vHistorico(){
         <thead><tr><th>Mecánico</th><th>Tiempo trabajado</th><th>Turnos</th><th>Coches</th><th>Reparaciones hechas</th></tr></thead>
         <tbody>${Object.values(res).map(x => `<tr><td>${esc(x.nombre)}</td><td>${fmtMin(x.seg)}</td><td>${x.turnos}</td><td>${x.coches.size}</td><td>${x.reps}</td></tr>`).join('')}</tbody></table></div>` : ''}
       ${turnos.length ? `<div class="panel tabla"><h2>Turnos de trabajo</h2><table>
-        <thead><tr><th>Inicio</th><th>Fin</th><th>Coche</th><th>Mecánico</th><th>Trabajado</th><th>Asignado al coche</th><th>Reparaciones</th><th>Resultado</th></tr></thead>
+        <thead><tr><th>Inicio</th><th>Fin</th><th>Coche</th><th>Mecánico</th><th>Trabajado</th><th>Asignado (con checklists)</th><th>Reparaciones</th><th>Resultado</th></tr></thead>
         <tbody>${turnos.map(r => `<tr><td>${fmtFecha(r.inicio)}</td><td>${r.fin ? fmtFecha(r.fin) : 'En curso'}</td>
           <td>${esc(r.matricula)}<div class="suave">${esc(r.marca)} ${esc(r.modelo)}</div><div class="suave">Orden ${r.orden_id}, ${esc(r.tipo_revision)}</div></td>
           <td>${esc(r.mecanico)}</td><td>${fmtMin((r.fin || ahora) - r.inicio)}</td><td>${fmtMin(r.seg_asignados)}</td><td>${r.reparaciones}</td>
           <td>${MOT[r.motivo] || 'En curso'}${r.relevo ? `<div class="suave">Relevo: ${esc(r.relevo)}</div>` : ''}${r.nota ? `<div class="suave">${esc(r.nota)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div>` : ''}
       ${reps.length ? `<div class="panel tabla"><h2>Reparaciones hechas</h2><table>
-        <thead><tr><th>Fecha</th><th>Reparación</th><th>Coche</th><th>Mecánico</th><th>Minutos asignados</th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Reparación</th><th>Coche</th><th>Mecánico</th><th>Min. asignados</th><th>Min. reales</th></tr></thead>
         <tbody>${reps.map(r => `<tr><td>${fmtFecha(r.finalizada)}</td><td>${esc(r.reparacion)}</td>
           <td>${esc(r.matricula)}<div class="suave">${esc(r.marca)} ${esc(r.modelo)}</div></td>
-          <td>${esc(r.mecanico || '—')}</td><td>${esc(r.minutos)}</td></tr>`).join('')}</tbody></table></div>` : ''}`
+          <td>${esc(r.mecanico || '—')}</td><td>${esc(r.minutos)}</td><td>${r.minutos_reales == null ? '—' : esc(r.minutos_reales)}</td></tr>`).join('')}</tbody></table></div>` : ''}`
       : '<div class="panel vacio"><p>No hay registros con esos filtros.</p></div>';
   };
   $('#h-buscar').onclick = accion(buscar);
@@ -843,8 +1004,9 @@ async function vHistorico(){
   });
   $('#h-csv2').onclick = accion(async () => {
     const rows = await leerReps();
-    descargarCSV('reparaciones', ['Fecha','Reparación','Orden','Revisión','Matrícula','Marca','Modelo','Mecánico','Minutos asignados'],
-      rows.map(r => [f(r.finalizada), r.reparacion, r.orden_id, r.tipo_revision, r.matricula, r.marca, r.modelo, r.mecanico, n(r.minutos)]));
+    descargarCSV('reparaciones', ['Fecha','Reparación','Orden','Revisión','Matrícula','Marca','Modelo','Mecánico','Min. asignados','Min. reales'],
+      rows.map(r => [f(r.finalizada), r.reparacion, r.orden_id, r.tipo_revision, r.matricula, r.marca, r.modelo, r.mecanico,
+        n(r.minutos), r.minutos_reales == null ? '' : n(r.minutos_reales)]));
   });
   await buscar();
 }
@@ -866,8 +1028,8 @@ async function mOrden(id){
   try { o = await DB.orden(id); }
   catch(x){ toast(x.message, true); return mInicio(); }
   if (o.estado !== 'abierta'){ toast('Este coche ya está cerrado'); return mInicio(); }
-  const run = o.en_marcha;
-  const ck = !!o.checklist;
+  const run = o.en_marcha, ck = !!o.checklist;
+  const todas = o.n_tareas > 0 && o.n_finalizadas === o.n_tareas;
   app(`<p><button class="lnk" id="volver">Volver a mis coches</button></p>
   <div class="dos ${ck ? 'tareas-primero' : ''}">
     <section class="pila">
@@ -876,34 +1038,40 @@ async function mOrden(id){
         ${o.notas ? `<div class="nota-relevo">${esc(o.notas)}</div>` : ''}
         ${o.coche.notas ? `<p class="suave">Notas del coche: ${esc(o.coche.notas)}</p>` : ''}
       </div>
-      <div class="panel" id="ck-zona">
-        <h2>Checklist ${o.tipo_checklist === 'basico' ? 'básico' : 'completo'}</h2>
-        ${ck ? verChecklist(o.tipo_checklist, o.checklist) + '<p class="suave" style="margin-top:8px">Solo el administrador puede modificarlo.</p>'
-          : `<p>Revisa cada punto antes de empezar. Las reparaciones aparecerán cuando lo guardes.</p>${formChecklist(o.tipo_checklist)}
-             <button class="btn pri" id="ck-guardar" style="margin-top:12px">Guardar checklist</button>`}
-      </div>
+      ${panelChecklist(o, 'inicial', 'mec', id)}
     </section>
-    ${ck ? `<section class="pila">${bloqueTrabajo(o, 'mec')}</section>` : ''}
+    ${ck ? `<section class="pila">
+      ${bloqueTrabajo(o, 'mec')}
+      ${todas || o.checklist_final ? panelChecklist(o, 'final', 'mec', id) : ''}
+    </section>` : ''}
   </div>`);
   $('#volver').onclick = () => mInicio();
-  if (!ck){
-    $('#ck-guardar').onclick = () => {
-      let b;
-      try { b = leerChecklist($('#ck-zona')); } catch(x){ return toast(x.message, true); }
-      dialogo(`<h2>¿Seguro que quieres guardarlo?</h2>
-        <p>Se guardará con la fecha y hora actuales y ya no podrás editarlo, solo el administrador.</p>
-        <p><strong>Al guardarlo empezarán las reparaciones:</strong> el tiempo del coche se pondrá en marcha de forma automática.</p>`,
-        'Guardar y empezar', async () => {
-          await rpc('hacer_checklist', {p_orden: id, p_datos: b});
-          try { await rpc('iniciar_orden', {p_orden: id}); toast('Checklist guardado. El tiempo está en marcha'); }
-          catch(x){ toast('Checklist guardado, pero no se pudo arrancar el tiempo: ' + x.message, true); }
-          mOrden(id);
-        });
-    };
-  }
-  marcarReparaciones(() => mOrden(id));
+  const recargar = () => mOrden(id);
+  on('[data-ck-guardar]', 'click', e => {
+    const tipo = e.currentTarget.dataset.ckGuardar;
+    const zona = $('#ck-' + tipo).querySelector('.ck-cuerpo');
+    let b;
+    try { b = leerChecklist(zona); } catch(x){ return toast(x.message, true); }
+    const texto = tipo === 'final'
+      ? `<h2>¿Guardar el control final?</h2>
+         <p>Se guardará con la fecha y hora actuales y ya no podrás editarlo, solo el administrador.</p>
+         <p>Después podrás pulsar <strong>Finalizar trabajo</strong>.</p>`
+      : `<h2>¿Seguro que quieres guardarlo?</h2>
+         <p>Se guardará con la fecha y hora actuales y ya no podrás editarlo, solo el administrador.</p>
+         <p><strong>Al guardarlo empezarán las reparaciones:</strong> el tiempo del coche se pondrá en marcha de forma automática.</p>`;
+    dialogo(texto, tipo === 'final' ? 'Guardar control final' : 'Guardar y empezar', async () => {
+      await rpc('hacer_checklist', {p_orden: id, p_datos: b, p_tipo: tipo});
+      if (tipo === 'inicial'){
+        try { await rpc('iniciar_orden', {p_orden: id}); toast('Checklist guardado. El tiempo está en marcha'); }
+        catch(x){ toast('Checklist guardado, pero no se pudo arrancar el tiempo: ' + x.message, true); }
+      } else toast('Control final guardado');
+      recargar();
+    });
+  });
+  marcarReparaciones(recargar);
+  accionesMecanico(o, recargar);
   on('[data-empezar]', 'click', accion(async () => {
-    await rpc('iniciar_orden', {p_orden: id}); toast('Tiempo en marcha'); mOrden(id);
+    await rpc('iniciar_orden', {p_orden: id}); toast('Tiempo en marcha'); recargar();
   }));
   on('[data-fin]', 'click', () => {
     dialogo('<h2>Finalizar el trabajo</h2><p>El coche quedará terminado y se parará el tiempo para todos los que estén en él. No se puede deshacer.</p>',
@@ -916,14 +1084,15 @@ async function mOrden(id){
       <div class="pila" style="margin-top:10px">
         <label>¿Quién continúa?<select id="d-rel"><option value="">Los ya asignados</option>
           ${comp.map(c => `<option value="${c.id}">${esc(c.nombre)}</option>`).join('')}</select></label>
-        <label>Nota para el relevo<textarea id="d-nota" rows="3" placeholder="Qué has hecho y qué falta"></textarea></label>
+        <label>Nota para el relevo y el taller<textarea id="d-nota" rows="3" placeholder="Qué has hecho y qué falta"></textarea></label>
       </div>`, 'Terminar mi turno', async d => {
         await rpc('terminar_orden', {p_orden: id, p_motivo: 'fin_turno',
           p_relevo: d.querySelector('#d-rel').value || null, p_nota: d.querySelector('#d-nota').value});
         toast('Turno cerrado'); mInicio();
       });
   });
-  st.refresh = ck ? () => mOrden(id) : null;
+  // si hay un checklist a medio rellenar, no refrescar para no borrarlo
+  st.refresh = $('.ck-cuerpo .ck') ? null : () => mOrden(id);
 }
 
 /* ═════════ arranque ═════════ */
