@@ -15,7 +15,14 @@ insert into public.ajustes(id, registro_abierto) values (1, true) on conflict (i
 create table if not exists public.talleres(
   id bigint generated always as identity primary key,
   nombre text not null,
+  logo text,            -- imagen en base64, la sube el administrador
+  direccion text, telefono text, email text, cif text,
   creado timestamptz not null default now());
+alter table public.talleres add column if not exists logo text;
+alter table public.talleres add column if not exists direccion text;
+alter table public.talleres add column if not exists telefono text;
+alter table public.talleres add column if not exists email text;
+alter table public.talleres add column if not exists cif text;
 
 create table if not exists public.perfiles(
   id uuid primary key references auth.users(id) on delete cascade,
@@ -44,13 +51,17 @@ create table if not exists public.ordenes(
   tipo_checklist text not null check (tipo_checklist in ('basico','completo')),
   notas text,
   estado text not null default 'abierta' check (estado in ('abierta','finalizada','cancelada')),
-  seg_consumidos numeric not null default 0,   -- tiempo del tramo actual (se pone a cero al marcar una reparación)
+  seg_consumidos numeric not null default 0,   -- saldo del mecánico que lleva la cuenta (puede ser negativo)
+  seg_tarea numeric not null default 0,        -- tiempo dedicado a la reparación en curso
+  cuenta_mecanico uuid references public.perfiles(id),
   seg_totales numeric not null default 0,      -- tiempo real total del coche
   en_marcha_desde timestamptz,
   creado timestamptz not null default now(),
   cerrado timestamptz);
 alter table public.ordenes add column if not exists seg_consumidos numeric not null default 0;
 alter table public.ordenes add column if not exists seg_totales numeric not null default 0;
+alter table public.ordenes add column if not exists seg_tarea numeric not null default 0;
+alter table public.ordenes add column if not exists cuenta_mecanico uuid references public.perfiles(id);
 alter table public.ordenes add column if not exists en_marcha_desde timestamptz;
 
 create table if not exists public.checklists(
@@ -119,12 +130,17 @@ create table if not exists public.avisos(
   orden_id bigint not null references public.ordenes(id) on delete cascade,
   tarea_id bigint references public.tareas(id) on delete set null,
   mecanico_id uuid not null references public.perfiles(id),
-  tipo text not null check (tipo in ('incidencia','nota','fin_turno')),
+  tipo text not null check (tipo in ('incidencia','nota','fin_turno','tarea','fin_trabajo')),
   texto text not null,
+  fotos jsonb not null default '[]'::jsonb,
   creado timestamptz not null default now(),
   leido timestamptz,
   leido_por uuid references public.perfiles(id));
 create index if not exists ix_avisos_taller on public.avisos(taller_id, leido);
+alter table public.avisos add column if not exists fotos jsonb not null default '[]'::jsonb;
+alter table public.avisos drop constraint if exists avisos_tipo_check;
+alter table public.avisos add constraint avisos_tipo_check
+  check (tipo in ('incidencia','nota','fin_turno','tarea','fin_trabajo'));
 
 -- Un mecánico solo puede estar trabajando en un coche a la vez
 create unique index if not exists un_coche_a_la_vez on public.orden_sesiones(mecanico_id) where fin is null;
@@ -335,6 +351,48 @@ begin
   end if;
 end $$;
 
+create or replace function public.guardar_taller(p_nombre text, p_logo text default null,
+        p_direccion text default null, p_telefono text default null,
+        p_email text default null, p_cif text default null, p_borrar_logo boolean default false) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  if length(trim(coalesce(p_nombre,''))) < 2 then raise exception 'Escribe el nombre del taller'; end if;
+  if p_logo is not null and length(p_logo) > 400000 then
+    raise exception 'El logo pesa demasiado. Usa una imagen más pequeña'; end if;
+  update talleres set nombre = trim(p_nombre),
+                      direccion = nullif(trim(coalesce(p_direccion,'')),''),
+                      telefono  = nullif(trim(coalesce(p_telefono,'')),''),
+                      email     = nullif(trim(coalesce(p_email,'')),''),
+                      cif       = nullif(trim(coalesce(p_cif,'')),''),
+                      logo = case when p_borrar_logo then null when p_logo is not null then p_logo else logo end
+   where id = t;
+end $$;
+
+-- ─────────────── Fotos de los checklists ───────────────
+-- Las fotos se guardan en Storage. Cada taller solo entra en su carpeta.
+do $$
+begin
+  insert into storage.buckets (id, name, public) values ('fotos', 'fotos', false) on conflict (id) do nothing;
+exception when others then
+  raise notice 'No se pudo crear el bucket. Créalo a mano en Storage, privado y con el nombre fotos';
+end $$;
+
+do $$
+begin
+  drop policy if exists "fotos del taller: leer" on storage.objects;
+  drop policy if exists "fotos del taller: subir" on storage.objects;
+  drop policy if exists "fotos del taller: borrar" on storage.objects;
+  create policy "fotos del taller: leer" on storage.objects for select to authenticated
+    using (bucket_id = 'fotos' and (storage.foldername(name))[1] = public.mi_taller()::text);
+  create policy "fotos del taller: subir" on storage.objects for insert to authenticated
+    with check (bucket_id = 'fotos' and (storage.foldername(name))[1] = public.mi_taller()::text);
+  create policy "fotos del taller: borrar" on storage.objects for delete to authenticated
+    using (bucket_id = 'fotos' and (storage.foldername(name))[1] = public.mi_taller()::text);
+exception when others then
+  raise notice 'No se pudieron crear las reglas de Storage: mira el README';
+end $$;
+
 -- ─────────────── Coches y órdenes ───────────────
 create or replace function public.guardar_coche(p_id bigint, p jsonb) returns bigint
 language plpgsql security definer set search_path = public as $$
@@ -452,6 +510,7 @@ begin
   else
     if o.en_marcha_desde is not null then
       update ordenes set seg_consumidos = o.seg_consumidos + extract(epoch from now() - o.en_marcha_desde),
+                         seg_tarea = o.seg_tarea + extract(epoch from now() - o.en_marcha_desde),
                          seg_totales = o.seg_totales + extract(epoch from now() - o.en_marcha_desde),
                          en_marcha_desde = null where id = p_id;
     end if;
@@ -470,7 +529,11 @@ begin
     if v is null or coalesce(v->>'estado','') not in ('ok','revisar','na') then
       raise exception 'Falta revisar: %', it->>'texto'; end if;
     items := items || jsonb_build_object(it->>'id',
-      jsonb_build_object('estado', v->>'estado', 'nota', left(trim(coalesce(v->>'nota','')), 300)));
+      jsonb_build_object('estado', v->>'estado', 'nota', left(trim(coalesce(v->>'nota','')), 300),
+        'fotos', coalesce((select jsonb_agg(f) from (
+            select f from jsonb_array_elements_text(
+              case when jsonb_typeof(v->'fotos') = 'array' then v->'fotos' else '[]'::jsonb end) f
+            limit 6) z), '[]'::jsonb)));
   end loop;
   return jsonb_build_object('items', items,
     'km', case when jsonb_typeof(p->'km') = 'number' and (p->>'km')::numeric >= 0 then p->'km' end,
@@ -542,6 +605,12 @@ begin
     raise exception 'Ya estás trabajando en otro coche. Marca fin de turno antes'; end if;
   if exists(select 1 from orden_sesiones where mecanico_id = yo.id and fin is null and orden_id = p_orden) then
     return; end if;
+  -- el saldo de tiempo es de quien lleva la cuenta: si entra otro mecánico, empieza limpio
+  if o.cuenta_mecanico is distinct from yo.id and o.en_marcha_desde is null then
+    update ordenes set seg_consumidos = 0, seg_tarea = 0, cuenta_mecanico = yo.id where id = p_orden;
+  elsif o.cuenta_mecanico is null then
+    update ordenes set cuenta_mecanico = yo.id where id = p_orden;
+  end if;
   if o.en_marcha_desde is null then
     update ordenes set en_marcha_desde = now() where id = p_orden;
   end if;
@@ -564,16 +633,25 @@ begin
   if p_hecha then
     if t.estado = 'finalizada' then return; end if;
     if o.en_marcha_desde is not null then v_paso := extract(epoch from now() - o.en_marcha_desde); end if;
-    v_tramo := o.seg_consumidos + v_paso;
-    -- el tiempo de esta reparación se descuenta: el contador pasa a ser el de las que quedan
-    update ordenes set seg_consumidos = 0,
+    v_tramo := o.seg_tarea + v_paso;   -- lo que ha costado esta reparación
+    -- el tiempo asignado sale de la cuenta. Si se ha pasado, la demora se arrastra;
+    -- si ha terminado antes, el margen no se guarda (el saldo nunca baja de cero)
+    update ordenes set seg_consumidos = greatest(0, o.seg_consumidos + v_paso - t.seg_asignados),
+                       seg_tarea = 0,
                        seg_totales = o.seg_totales + v_paso,
                        en_marcha_desde = case when o.en_marcha_desde is null then null else now() end
      where id = o.id;
     update tareas set estado = 'finalizada', finalizada = now(), finalizada_por = yo.id, seg_reales = v_tramo
      where id = p_id;
+    if yo.rol = 'mecanico' then
+      insert into avisos(taller_id, orden_id, tarea_id, mecanico_id, tipo, texto)
+      values (yo.taller_id, o.id, p_id, yo.id, 'tarea',
+              'Reparación hecha: ' || t.titulo || ' (' || round(t.seg_asignados / 60.0) || ' min asignados, '
+              || round(v_tramo / 60.0) || ' min reales)');
+    end if;
   else
     if t.estado <> 'finalizada' then return; end if;
+    -- al desmarcar, la reparación vuelve a contar con su tiempo y el saldo se queda como está
     update tareas set estado = 'pendiente', finalizada = null, finalizada_por = null, seg_reales = null
      where id = p_id;
   end if;
@@ -610,9 +688,12 @@ begin
       raise exception 'Falta el control final'; end if;
     update orden_sesiones set fin = now(), motivo = 'finalizada' where orden_id = p_orden and fin is null;
     update ordenes set seg_consumidos = o.seg_consumidos + extract(epoch from now() - v_desde),
+                       seg_tarea = o.seg_tarea + extract(epoch from now() - v_desde),
                        seg_totales = o.seg_totales + extract(epoch from now() - v_desde),
                        en_marcha_desde = null, estado = 'finalizada', cerrado = now()
      where id = p_orden;
+    insert into avisos(taller_id, orden_id, mecanico_id, tipo, texto)
+    values (yo.taller_id, p_orden, yo.id, 'fin_trabajo', 'Coche terminado: control final hecho y todas las reparaciones marcadas');
   else
     if p_relevo is not null then
       insert into tarea_mecanicos(tarea_id, mecanico_id, taller_id)
@@ -621,6 +702,7 @@ begin
     end if;
     if not exists(select 1 from orden_sesiones where orden_id = p_orden and fin is null) then
       update ordenes set seg_consumidos = o.seg_consumidos + extract(epoch from now() - v_desde),
+                         seg_tarea = o.seg_tarea + extract(epoch from now() - v_desde),
                          seg_totales = o.seg_totales + extract(epoch from now() - v_desde),
                          en_marcha_desde = null where id = p_orden;
     end if;
@@ -638,13 +720,24 @@ begin
          nota = coalesce(nullif(trim(p_nota), ''), 'Tiempo parado por el administrador')
    where orden_id = p_orden and fin is null;
   update ordenes set seg_consumidos = o.seg_consumidos + extract(epoch from now() - o.en_marcha_desde),
+                     seg_tarea = o.seg_tarea + extract(epoch from now() - o.en_marcha_desde),
                      seg_totales = o.seg_totales + extract(epoch from now() - o.en_marcha_desde),
                      en_marcha_desde = null
    where id = p_orden;
 end $$;
 
 -- ─────────────── Incidencias y avisos al administrador ───────────────
-create or replace function public.crear_incidencia(p_tarea bigint, p_nota text) returns void
+drop function if exists public.crear_incidencia(bigint, text);
+drop function if exists public.crear_nota(bigint, text, bigint);
+
+create or replace function public._fotos(p jsonb) returns jsonb
+language sql immutable as $$
+  select coalesce((select jsonb_agg(f) from (
+    select f from jsonb_array_elements_text(case when jsonb_typeof(p) = 'array' then p else '[]'::jsonb end) f
+    limit 6) z), '[]'::jsonb)
+$$;
+
+create or replace function public.crear_incidencia(p_tarea bigint, p_nota text, p_fotos jsonb default '[]'::jsonb) returns void
 language plpgsql security definer set search_path = public as $$
 declare yo perfiles := public._yo(); t tareas; o ordenes;
 begin
@@ -662,14 +755,16 @@ begin
    where orden_id = o.id and fin is null;
   if o.en_marcha_desde is not null then
     update ordenes set seg_consumidos = o.seg_consumidos + extract(epoch from now() - o.en_marcha_desde),
+                       seg_tarea = o.seg_tarea + extract(epoch from now() - o.en_marcha_desde),
                        seg_totales = o.seg_totales + extract(epoch from now() - o.en_marcha_desde),
                        en_marcha_desde = null where id = o.id;
   end if;
-  insert into avisos(taller_id, orden_id, tarea_id, mecanico_id, tipo, texto)
-  values (yo.taller_id, o.id, p_tarea, yo.id, 'incidencia', trim(p_nota));
+  insert into avisos(taller_id, orden_id, tarea_id, mecanico_id, tipo, texto, fotos)
+  values (yo.taller_id, o.id, p_tarea, yo.id, 'incidencia', trim(p_nota), public._fotos(p_fotos));
 end $$;
 
-create or replace function public.crear_nota(p_orden bigint, p_texto text, p_tarea bigint default null) returns void
+create or replace function public.crear_nota(p_orden bigint, p_texto text, p_tarea bigint default null,
+                                             p_fotos jsonb default '[]'::jsonb) returns void
 language plpgsql security definer set search_path = public as $$
 declare yo perfiles := public._yo();
 begin
@@ -678,8 +773,8 @@ begin
     raise exception 'Orden no encontrada'; end if;
   if yo.rol = 'mecanico' and not public.orden_mia(p_orden) then
     raise exception 'Este coche no está asignado a ti'; end if;
-  insert into avisos(taller_id, orden_id, tarea_id, mecanico_id, tipo, texto)
-  values (yo.taller_id, p_orden, p_tarea, yo.id, 'nota', trim(p_texto));
+  insert into avisos(taller_id, orden_id, tarea_id, mecanico_id, tipo, texto, fotos)
+  values (yo.taller_id, p_orden, p_tarea, yo.id, 'nota', trim(p_texto), public._fotos(p_fotos));
 end $$;
 
 create or replace function public.marcar_avisos(p_ids bigint[] default null) returns void

@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+<script src="marcas.js"></script>
 <style>
 :root{--bg:#E6EAEE;--tinta:#1B2733;--panel:#fff;--linea:#CBD3DB;--suave:#5B6875;--amar:#F2B705;--verde:#2E8B57;--rojo:#C8423B;--azul:#2F5D8A}
 *{box-sizing:border-box}
@@ -22,6 +23,38 @@ header#top::after{content:"";display:block;height:6px;background:repeating-linea
 .barra{display:flex;align-items:center;gap:6px 10px;padding:10px 16px;max-width:1100px;margin:auto;flex-wrap:wrap}
 .logo{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-size:1.4rem;font-weight:700;margin-right:auto;line-height:1.1}
 .logo small{display:block;font:400 .8rem Barlow,system-ui,sans-serif;color:#AEB9C4}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-img{height:38px;width:auto;max-width:130px;object-fit:contain;background:#fff;border-radius:4px;padding:3px}
+.logo-prev{min-height:120px;display:flex;align-items:center;justify-content:center;background:#F4F6F8;border:1px dashed var(--linea);border-radius:6px;padding:12px}
+.logo-prev img{max-height:140px;max-width:100%;object-fit:contain}
+.fotos{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px}
+.fotos.subiendo{opacity:.5;pointer-events:none}
+.mini{position:relative;display:inline-block;line-height:0}
+.mini img{width:62px;height:62px;object-fit:cover;border-radius:4px;border:1px solid var(--linea);background:#EDF1F4;cursor:zoom-in}
+.mini .quitar{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;border:0;
+  background:var(--rojo);color:#fff;font:700 14px/1 Barlow,system-ui,sans-serif;cursor:pointer}
+.foto-btn{padding:5px 12px;min-height:34px;font-size:.88rem;display:inline-flex;align-items:center;margin:0}
+.informe h1{font-size:1.9rem;margin:14px 0 2px}
+.informe h2{font-size:1.25rem;margin:22px 0 6px;padding-bottom:4px;border-bottom:2px solid var(--tinta)}
+.inf-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;
+  border-bottom:4px solid var(--amar);padding-bottom:10px}
+.inf-logo{max-height:70px;max-width:220px;object-fit:contain}
+.inf-coche{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.inf-coche .escena{width:250px;flex:0 0 auto}
+.firmas{display:flex;gap:24px;margin-top:34px;flex-wrap:wrap}
+.firmas div{flex:1 1 180px;font-size:.9rem;color:var(--suave)}
+.firmas span{display:block;border-bottom:1px solid var(--tinta);height:42px}
+@media print{
+  header#top,#avisos,#toast,.no-print,nav{display:none!important}
+  body{background:#fff}
+  main{padding:0;max-width:none}
+  .panel{border:0;padding:0}
+  .informe h2{page-break-after:avoid}
+  table{page-break-inside:auto}
+  tr{page-break-inside:avoid}
+  .mini img{width:52px;height:52px}
+  @page{margin:14mm}
+}
 nav{display:flex;flex-wrap:wrap;gap:2px}
 nav button{background:none;border:0;color:#C9D2DB;font:500 .95rem Barlow,system-ui,sans-serif;padding:8px 10px;border-radius:4px;cursor:pointer}
 nav button:hover{color:#fff}
@@ -75,15 +108,24 @@ legend{font-size:.85rem;color:var(--suave);padding:0 4px}
 .cd{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-weight:700;font-size:2.6rem;font-variant-numeric:tabular-nums;line-height:1;margin-top:4px}
 .cd.neg{color:var(--rojo)}
 .cd.oculto{color:var(--linea);letter-spacing:.05em}
+.cd.hecho{color:var(--verde)}
 .reps{margin-top:12px}
 .rep{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--linea)}
 .rep.hecha strong{text-decoration:line-through;color:var(--suave)}
 .chk-rep{display:flex;gap:10px;align-items:flex-start;color:var(--tinta);font-size:1rem;margin:0;flex:1 1 220px;cursor:pointer}
 .chk-rep input{width:24px;height:24px;margin:2px 0 0;flex:0 0 auto;accent-color:var(--verde)}
 .chk-rep input:disabled{cursor:not-allowed}
+label.combo{position:relative}
+.combo-lista{position:absolute;left:0;right:0;top:100%;z-index:12;margin:2px 0 0;padding:0;list-style:none;
+  background:#fff;border:1px solid var(--linea);border-radius:4px;max-height:230px;overflow-y:auto;
+  box-shadow:0 8px 20px rgba(27,39,51,.18)}
+.combo-lista li{padding:9px 10px;cursor:pointer;font-size:.98rem}
+.combo-lista li:hover,.combo-lista li.sel{background:var(--tinta);color:#fff}
 #avisos{position:fixed;top:78px;right:12px;width:min(340px,calc(100vw - 24px));display:flex;flex-direction:column;gap:10px;z-index:15}
 .aviso{background:#fff;border:1px solid var(--linea);border-left:5px solid var(--azul);border-radius:6px;padding:12px;box-shadow:0 6px 20px rgba(27,39,51,.18);animation:entra .25s ease-out}
 .aviso.a-incidencia{border-left-color:var(--rojo)}
+.aviso.a-fin_trabajo{border-left-color:var(--verde)}
+.aviso.a-tarea{border-left-color:var(--verde)}
 .aviso p{margin:6px 0}
 @keyframes entra{from{opacity:0;transform:translateX(20px)}}
 .aviso-fila.leido{opacity:.6}
@@ -131,7 +173,7 @@ dialog::backdrop{background:rgba(27,39,51,.55)}
 /* ═════════ utilidades ═════════ */
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const app = html => { $('#app').innerHTML = html; window.scrollTo({top:0}); };
+const app = html => { $('#app').innerHTML = html; window.scrollTo({top:0}); pintarFotos($('#app')); };
 const on = (sel, ev, fn) => document.querySelectorAll('#app ' + sel).forEach(el => el.addEventListener(ev, fn));
 const fmtFecha = ts => ts ? new Date(ts * 1000).toLocaleString('es-ES', {dateStyle:'short', timeStyle:'short'}) : '';
 const fmtMin = s => { const m = Math.round(s / 60); return m >= 60 ? `${Math.floor(m/60)} h ${m%60 ? m%60 + ' min' : ''}`.trim() : `${m} min`; };
@@ -224,12 +266,19 @@ function normOrden(o){
     activos: ses.filter(x => !x.fin).map(x => ({id: x.mecanico_id, nombre: nom(x.mecanico_id)})),
     relevo: rel ? {de: nom(rel.mecanico_id), para: rel.relevo_id ? nom(rel.relevo_id) : null, nota: rel.nota, fin: ts(rel.fin)} : null,
     n_tareas: tareas.length, n_finalizadas: tareas.filter(t => t.estado === 'finalizada').length,
+    sesiones: ses.map(x => ({mecanico: nom(x.mecanico_id), inicio: ts(x.inicio), fin: ts(x.fin),
+      motivo: x.motivo, nota: x.nota, relevo: x.relevo_id ? nom(x.relevo_id) : null}))
+      .sort((a, b) => a.inicio - b.inicio),
   };
 }
 const SEL_ORDEN = '*, coche:coches(*), checklists(*), tareas(*, tarea_mecanicos(mecanico_id)), orden_sesiones(id,mecanico_id,inicio,fin,motivo,nota,relevo_id)';
 const SEG_CHECKLISTS = 12 * 60;   // los dos checklists cuentan 12 min en los informes
 
 const DB = {
+  async avisosDeOrden(ordenId){
+    const r = await ok(sb.from('avisos').select('*').eq('orden_id', ordenId).order('creado'));
+    return r.map(a => ({...a, creado: ts(a.creado), mecanico: nom(a.mecanico_id)}));
+  },
   async avisos(soloNuevos){
     let q = sb.from('avisos').select('*, ordenes(coches(matricula))').order('creado', {ascending: false}).limit(50);
     if (soloNuevos) q = q.is('leido', null);
@@ -273,8 +322,139 @@ const DB = {
 const accion = fn => async e => { e.preventDefault(); const b = e.currentTarget; b.disabled = true;
   try { await fn(e, b); } catch(x){ toast(x.message, true); } finally { if (b.isConnected) b.disabled = false; } };
 
-let yo = null, PLANT = null;
+let yo = null, PLANT = null, TALLER = null;
 const st = {refresh:null, editing:false};
+
+/* ═════════ imágenes: fotos del checklist y logo del taller ═════════ */
+const BUCKET = 'fotos';
+const firmadas = new Map();
+function reducir(file, max = 1280, calidad = 0.72){
+  return new Promise((res, rej) => {
+    if (!/^image\//.test(file.type)) return rej(new Error('Eso no es una imagen'));
+    const img = new Image();
+    img.onload = () => {
+      const e = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * e); c.height = Math.round(img.height * e);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      c.toBlob(b => b ? res(b) : rej(new Error('No se pudo procesar la imagen')), 'image/jpeg', calidad);
+    };
+    img.onerror = () => rej(new Error('No se pudo leer la imagen'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+async function subirFoto(file, ordenId){
+  const blob = await reducir(file);
+  const nombre = `${yo.taller_id}/${ordenId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+  const {error} = await sb.storage.from(BUCKET).upload(nombre, blob, {contentType: 'image/jpeg'});
+  if (error) throw new Error(/bucket/i.test(error.message) ? 'Falta crear el almacén de fotos en Supabase (mira el README)' : traducir(error.message));
+  firmadas.set(nombre, URL.createObjectURL(blob));
+  return nombre;
+}
+async function pintarFotos(raiz = document){
+  const els = [...raiz.querySelectorAll('img[data-foto]:not([src])')];
+  if (!els.length || !sb) return;
+  const pendientes = [...new Set(els.map(e => e.dataset.foto).filter(f => !firmadas.has(f)))];
+  if (pendientes.length){
+    const {data} = await sb.storage.from(BUCKET).createSignedUrls(pendientes, 3600);
+    (data || []).forEach(d => { if (d.signedUrl) firmadas.set(d.path, d.signedUrl); });
+  }
+  els.forEach(e => { const u = firmadas.get(e.dataset.foto); if (u) e.src = u; });
+}
+document.addEventListener('click', e => {
+  const im = e.target.closest('img[data-foto]');
+  if (im && im.src) window.open(im.src, '_blank');
+});
+const fotosDe = raiz => [...raiz.querySelectorAll('input[name=foto]')].map(i => i.value);
+const miniatura = f => `<span class="mini"><img data-foto="${esc(f)}" alt="Foto del checklist">
+  <button type="button" class="quitar" data-quitar aria-label="Quitar foto">×</button>
+  <input type="hidden" name="foto" value="${esc(f)}"></span>`;
+function activarFotos(root, ordenId){
+  root.querySelectorAll('[data-subir]').forEach(inp => {
+    inp.onchange = async e => {
+      const f = e.target.files[0]; e.target.value = '';
+      if (!f) return;
+      const zona = inp.closest('.fotos');
+      zona.classList.add('subiendo');
+      try {
+        const ruta = await subirFoto(f, ordenId);
+        inp.closest('label').insertAdjacentHTML('beforebegin', miniatura(ruta));
+        pintarFotos(zona);
+      } catch(x){ toast(x.message, true); }
+      zona.classList.remove('subiendo');
+    };
+  });
+  root.addEventListener('click', e => {
+    const b = e.target.closest('[data-quitar]');
+    if (b) b.closest('.mini').remove();
+  });
+}
+
+/* ═════════ desplegables de marca, modelo y año ═════════ */
+const sinTildes = t => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const MARCAS = window.MARCAS || {};
+const LISTA_MARCAS = Object.keys(MARCAS).sort((a, b) => a.localeCompare(b, 'es'));
+const LISTA_ANIOS = (() => { const y = new Date().getFullYear() + 1, a = []; for (let i = y; i >= 1985; i--) a.push(String(i)); return a; })();
+
+function combo(input, opciones){
+  if (!input || input.dataset.combo) return;
+  input.dataset.combo = '1';
+  input.setAttribute('autocomplete', 'off');
+  const caja = document.createElement('ul');
+  caja.className = 'combo-lista';
+  caja.hidden = true;
+  input.insertAdjacentElement('afterend', caja);
+  let activo = -1;
+  const cerrar = () => { caja.hidden = true; activo = -1; };
+  const elegir = v => { input.value = v; cerrar(); input.dispatchEvent(new Event('input', {bubbles: true})); };
+  const pintar = () => {
+    const q = sinTildes(input.value.trim());
+    const todas = opciones();
+    // primero las que empiezan por lo escrito, después las que lo contienen
+    const empiezan = todas.filter(o => sinTildes(o).startsWith(q));
+    const contienen = q ? todas.filter(o => !sinTildes(o).startsWith(q) && sinTildes(o).includes(q)) : [];
+    const res = empiezan.concat(contienen).slice(0, 40);
+    if (!res.length) return cerrar();
+    caja.innerHTML = res.map((o, i) => `<li role="option" data-i="${i}">${esc(o)}</li>`).join('');
+    caja.hidden = false; activo = -1;
+    caja.querySelectorAll('li').forEach((li, i) => {
+      li.onmousedown = e => { e.preventDefault(); elegir(res[i]); };
+    });
+  };
+  const mover = paso => {
+    const lis = [...caja.querySelectorAll('li')];
+    if (!lis.length) return;
+    activo = (activo + paso + lis.length) % lis.length;
+    lis.forEach((li, i) => li.classList.toggle('sel', i === activo));
+    lis[activo].scrollIntoView({block: 'nearest'});
+  };
+  input.addEventListener('focus', pintar);
+  input.addEventListener('input', pintar);
+  input.addEventListener('blur', () => setTimeout(cerrar, 120));
+  input.addEventListener('keydown', e => {
+    if (caja.hidden && (e.key === 'ArrowDown')) return pintar();
+    if (e.key === 'ArrowDown'){ e.preventDefault(); mover(1); }
+    else if (e.key === 'ArrowUp'){ e.preventDefault(); mover(-1); }
+    else if (e.key === 'Enter' && !caja.hidden && activo >= 0){ e.preventDefault(); elegir(caja.querySelectorAll('li')[activo].textContent); }
+    else if (e.key === 'Escape') cerrar();
+  });
+}
+function combosCoche(root){
+  const g = n => root.querySelector(`[name=${n}]`);
+  combo(g('marca'), () => LISTA_MARCAS);
+  combo(g('modelo'), () => {
+    const m = LISTA_MARCAS.find(x => sinTildes(x) === sinTildes(g('marca').value.trim()));
+    return m ? MARCAS[m] : [];
+  });
+  combo(g('anio'), () => LISTA_ANIOS);
+  // al cambiar de marca, el modelo que ya no encaja se borra
+  g('marca').addEventListener('change', () => {
+    const m = LISTA_MARCAS.find(x => sinTildes(x) === sinTildes(g('marca').value.trim()));
+    const mod = g('modelo').value.trim();
+    if (m && mod && !MARCAS[m].some(x => sinTildes(x) === sinTildes(mod))) g('modelo').value = '';
+  });
+}
 
 /* ═════════ coche ilustrado ═════════ */
 const CARROCERIAS = {berlina:'Berlina', hatchback:'Compacto', familiar:'Familiar', suv:'SUV', coupe:'Coupé', furgoneta:'Furgoneta', pickup:'Pick-up'};
@@ -329,28 +509,35 @@ function fichaCoche(c, run=false){
 }
 
 /* ═════════ diálogo ═════════ */
-function dialogo(html, okTxt, onOk, okClase='pri'){
+function dialogo(html, okTxt, onOk, okClase='pri', opts = {}){
   const d = $('#dlg');
-  d.innerHTML = `<div class="dlg">${html}<div class="acc"><button type="button" class="btn sec" data-x>Cancelar</button>
+  d.innerHTML = `<div class="dlg">${html}<div class="acc">
+    ${opts.cancel === null ? '' : `<button type="button" class="btn sec" data-x>${esc(opts.cancel || 'Cancelar')}</button>`}
+    ${opts.extra ? `<button type="button" class="btn ${opts.extra.clase || 'sec'}" data-extra>${esc(opts.extra.txt)}</button>` : ''}
     <button type="button" class="btn ${okClase}" data-ok>${esc(okTxt)}</button></div></div>`;
   st.editing = true;
   d.onclose = () => { st.editing = false; };
-  d.querySelector('[data-x]').onclick = () => d.close();
+  d.querySelector('[data-x]')?.addEventListener('click', () => d.close());
+  d.querySelector('[data-extra]')?.addEventListener('click', () => { d.close(); opts.extra.fn(); });
   d.querySelector('[data-ok]').onclick = async e => {
     e.currentTarget.disabled = true;
     try { await onOk(d); d.close(); } catch(x){ toast(x.message, true); e.currentTarget.disabled = false; }
   };
+  if (opts.alAbrir) opts.alAbrir(d);
   d.showModal();
+  pintarFotos(d);
 }
 
 /* ═════════ cabecera y sesión ═════════ */
 const MENU_ADMIN = [['ordenes','Órdenes',()=>vOrdenes()],['nueva','Nueva orden',()=>vNuevaOrden()],
   ['avisos','Avisos',()=>vAvisos()],['mecanicos','Mecánicos',()=>vMecanicos()],
-  ['coches','Coches',()=>vCoches()],['historico','Histórico',()=>vHistorico()]];
+  ['coches','Coches',()=>vCoches()],['historico','Histórico',()=>vHistorico()],
+  ['taller','Mi taller',()=>vTaller()]];
 const MENU_MEC = [['inicio','Mis coches',()=>mInicio()]];
 function cabecera(){
   $('#top').hidden = false;
-  $('#logo').innerHTML = `${esc(yo.taller)}<small>${esc(yo.nombre)}, ${yo.rol === 'admin' ? 'administrador' : 'mecánico'}</small>`;
+  $('#logo').innerHTML = `${TALLER?.logo ? `<img class="logo-img" src="${esc(TALLER.logo)}" alt="">` : ''}
+    <span>${esc(yo.taller)}<small>${esc(yo.nombre)}, ${yo.rol === 'admin' ? 'administrador' : 'mecánico'}</small></span>`;
   const menu = yo.rol === 'admin' ? MENU_ADMIN : MENU_MEC;
   $('#nav').innerHTML = menu.map(([k,t]) => `<button data-k="${k}">${t}${k === 'avisos' ? '<i class="pin" hidden></i>' : ''}</button>`).join('') + `<button data-k="salir">Salir</button>`;
   $('#nav').querySelectorAll('button').forEach(b => b.onclick = () => {
@@ -423,8 +610,8 @@ async function arrancar(){
   if (!user) throw new Error('Inicia sesión');
   const p = await ok(sb.from('perfiles').select('id,nombre,usuario,rol,taller_id').eq('id', user.id).maybeSingle());
   if (!p){ await salir(false); throw new Error('Tu usuario está desactivado o no pertenece a ningún taller'); }
-  const t = await ok(sb.from('talleres').select('nombre').eq('id', p.taller_id).single());
-  yo = {...p, taller: t.nombre};
+  TALLER = await ok(sb.from('talleres').select('*').eq('id', p.taller_id).single());
+  yo = {...p, taller: TALLER.nombre};
   const [ahora, pl] = await Promise.all([rpc('ahora'), rpc('plantillas'), cargarNombres()]);
   OFFSET = Date.parse(ahora) - Date.now();
   PLANT = pl;
@@ -434,7 +621,7 @@ async function arrancar(){
 }
 
 /* ═════════ checklist ═════════ */
-function formChecklist(tipo, datos){
+function formChecklist(tipo, datos, ordenId){
   const it = datos?.items || {};
   return `<div class="ck">${PLANT[tipo].map(p => `
     <div class="ck-item" data-id="${p.id}">
@@ -442,6 +629,8 @@ function formChecklist(tipo, datos){
       <div class="seg" role="radiogroup" aria-label="${esc(p.texto)}">${Object.entries(CK_ETQ).map(([v,t]) =>
         `<label><input type="radio" name="ck-${p.id}" value="${v}" ${it[p.id]?.estado === v ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
       <div class="nota"><input placeholder="Nota (opcional)" aria-label="Nota sobre ${esc(p.texto)}" value="${esc(it[p.id]?.nota || '')}"></div>
+      <div class="nota fotos">${(it[p.id]?.fotos || []).map(miniatura).join('')}
+        <label class="btn sec foto-btn">Añadir foto<input type="file" accept="image/*" capture="environment" hidden data-subir></label></div>
     </div>`).join('')}
     <div class="grid">
       <label>Kilómetros<input type="number" min="0" name="ck-km" value="${esc(datos?.km ?? '')}"></label>
@@ -454,7 +643,8 @@ function leerChecklist(root){
   for (const row of root.querySelectorAll('.ck-item')){
     const sel = row.querySelector('input[type=radio]:checked');
     if (!sel){ row.scrollIntoView({block:'center'}); throw new Error('Falta revisar: ' + row.firstElementChild.textContent); }
-    items[row.dataset.id] = {estado: sel.value, nota: row.querySelector('.nota input').value};
+    items[row.dataset.id] = {estado: sel.value, nota: row.querySelector('.nota input').value,
+      fotos: [...row.querySelectorAll('input[name=foto]')].map(i => i.value)};
   }
   const km = root.querySelector('[name=ck-km]').value;
   return {items, km: km ? +km : null, observaciones: root.querySelector('[name=ck-obs]').value};
@@ -470,7 +660,7 @@ function panelChecklist(o, tipo, modo, id){
     <button class="btn sec" data-ck-hacer="${tipo}">Hacerlo yo</button>`;
   else if (tipo === 'final' && !todas) cuerpo = '<p>Se hace cuando estén todas las reparaciones marcadas.</p>';
   else cuerpo = `<p>${tipo === 'final' ? 'Repasa el coche antes de entregarlo.' : 'Revisa cada punto antes de empezar. Las reparaciones aparecerán cuando lo guardes.'}</p>
-    ${formChecklist(plantilla)}
+    ${formChecklist(plantilla, null, id)}
     <button class="btn pri" data-ck-guardar="${tipo}" style="margin-top:12px">Guardar ${tipo === 'final' ? 'control final' : 'checklist'}</button>`;
   return `<div class="panel" id="ck-${tipo}">
     <div class="fila entre"><h2 style="margin:0">${titulo}</h2>
@@ -490,7 +680,9 @@ function verChecklist(tipo, ck){
   return `${selloChecklist(ck)}
     ${revisar.length ? `<p style="margin-top:10px"><strong>${revisar.length} punto${revisar.length>1?'s':''} a revisar:</strong> ${revisar.map(p => esc(p.texto)).join(', ')}</p>` : '<p style="margin-top:10px">Todo correcto.</p>'}
     <details style="margin-top:8px"><summary>Ver checklist completo</summary>
-      <table><tbody>${PLANT[tipo].map(p => `<tr><td>${esc(p.texto)}</td><td>${CK_ETQ[it[p.id]?.estado] || ''}</td><td class="suave">${esc(it[p.id]?.nota || '')}</td></tr>`).join('')}</tbody></table>
+      <table><tbody>${PLANT[tipo].map(p => `<tr><td>${esc(p.texto)}</td><td>${CK_ETQ[it[p.id]?.estado] || ''}</td>
+        <td class="suave">${esc(it[p.id]?.nota || '')}
+          ${(it[p.id]?.fotos || []).length ? `<div class="fotos">${it[p.id].fotos.map(f => `<span class="mini"><img data-foto="${esc(f)}" alt="Foto del checklist"></span>`).join('')}</div>` : ''}</td></tr>`).join('')}</tbody></table>
       ${ck.datos.km ? `<p>Kilómetros: ${Number(ck.datos.km).toLocaleString('es-ES')}</p>` : ''}
       ${ck.datos.observaciones ? `<p>Observaciones: ${esc(ck.datos.observaciones)}</p>` : ''}
     </details>`;
@@ -542,10 +734,12 @@ function bloqueTrabajo(o, modo){
         ${run ? `<p><strong>Trabajando:</strong> ${esc(o.activos.map(a => a.nombre).join(', '))}</p>` : ''}
       </div>
       <div class="derecha">
-        ${verTiempo
-          ? `<div class="cd" data-rest="${o.restante}" data-run="${run ? 1 : 0}" data-t="${Date.now()}">${fmtCD(o.restante)}</div>
-             <div class="suave">${todas ? 'todo marcado' : `para ${fmtMin(o.seg_pendiente)} pendientes`}</div>`
-          : `<div class="cd oculto" aria-hidden="true">--:--</div><div class="suave">Al empezar</div>`}
+        ${!verTiempo
+          ? `<div class="cd oculto" aria-hidden="true">--:--</div><div class="suave">Al empezar</div>`
+          : todas
+            ? `<div class="cd hecho">✓</div><div class="suave">Todo marcado, ${fmtMin(o.seg_reales)} reales</div>`
+            : `<div class="cd" data-rest="${o.restante}" data-run="${run ? 1 : 0}" data-t="${Date.now()}">${fmtCD(o.restante)}</div>
+               <div class="suave">para ${fmtMin(o.seg_pendiente)} pendientes</div>`}
       </div>
     </div>
     ${o.relevo && abierta ? `<div class="nota-relevo">Relevo de ${esc(o.relevo.de)}${o.relevo.para ? ' para ' + esc(o.relevo.para) : ''}, ${fmtFecha(o.relevo.fin)}${o.relevo.nota ? ': ' + esc(o.relevo.nota) : ''}</div>` : ''}
@@ -560,26 +754,28 @@ function accionesMecanico(o, recargar){
     const t = o.tareas.find(x => x.id === tid);
     dialogo(`<h2>Incidencia en «${esc(t.titulo)}»</h2>
       <p>Se <strong>parará el tiempo</strong> del coche y le llegará un aviso al administrador. Podrás continuar cuando se resuelva.</p>
-      <label style="margin-top:10px">¿Qué ha pasado?<textarea id="d-nota" rows="4" placeholder="Falta una pieza, el tornillo está pasado de rosca..."></textarea></label>`,
+      <label style="margin-top:10px">¿Qué ha pasado?<textarea id="d-nota" rows="4" placeholder="Falta una pieza, el tornillo está pasado de rosca..."></textarea></label>
+      <div class="fotos"><label class="btn sec foto-btn">Añadir foto<input type="file" accept="image/*" capture="environment" hidden data-subir></label></div>`,
       'Enviar y parar el tiempo', async d => {
-        await rpc('crear_incidencia', {p_tarea: tid, p_nota: d.querySelector('#d-nota').value});
+        await rpc('crear_incidencia', {p_tarea: tid, p_nota: d.querySelector('#d-nota').value, p_fotos: fotosDe(d)});
         toast('Incidencia enviada. El tiempo está parado'); recargar();
-      }, 'peligro');
+      }, 'peligro', {alAbrir: d => activarFotos(d, o.id)});
   });
   on('[data-nota]', 'click', () => {
     dialogo(`<h2>Nota al taller</h2>
       <p>Le llegará un aviso al administrador. El tiempo sigue corriendo.</p>
-      <label style="margin-top:10px">Nota<textarea id="d-nota" rows="4"></textarea></label>`,
+      <label style="margin-top:10px">Nota<textarea id="d-nota" rows="4"></textarea></label>
+      <div class="fotos"><label class="btn sec foto-btn">Añadir foto<input type="file" accept="image/*" capture="environment" hidden data-subir></label></div>`,
       'Enviar', async d => {
-        await rpc('crear_nota', {p_orden: o.id, p_texto: d.querySelector('#d-nota').value});
+        await rpc('crear_nota', {p_orden: o.id, p_texto: d.querySelector('#d-nota').value, p_fotos: fotosDe(d)});
         toast('Nota enviada');
-      });
+      }, 'pri', {alAbrir: d => activarFotos(d, o.id)});
   });
 }
 function marcarReparaciones(recargar){
   on('[data-marcar]', 'change', async e => {
     const el = e.currentTarget; el.disabled = true;
-    try { await rpc('marcar_tarea', {p_id: +el.dataset.marcar, p_hecha: el.checked}); recargar(); }
+    try { await rpc('marcar_tarea', {p_id: +el.dataset.marcar, p_hecha: el.checked}); recargar(el.checked); }
     catch(x){ toast(x.message, true); el.checked = !el.checked; el.disabled = false; }
   });
 }
@@ -642,6 +838,7 @@ async function vOrden(id){
         <p class="suave">Tiempo real trabajado: ${fmtMin(o.seg_reales)}</p>
         <div class="fila" style="margin-top:10px">
           <button class="btn sec" id="o-guardar">Guardar datos</button>
+          <button class="btn sec" id="o-informe">Informe</button>
           ${o.estado === 'abierta'
             ? `${o.en_marcha ? '<button class="btn sec" id="o-parar">Parar el tiempo</button>' : ''}
                <button class="btn ok" data-estado="finalizada">Cerrar orden</button><button class="btn peligro" data-estado="cancelada">Cancelar orden</button>`
@@ -656,6 +853,7 @@ async function vOrden(id){
     </section>
   </div>`);
   $('#volver').onclick = () => vOrdenes();
+  $('#o-informe').onclick = () => vInforme(id);
   $('#o-parar')?.addEventListener('click', () => {
     dialogo(`<h2>Parar el tiempo</h2>
       <p>El coche queda a medias, con su tiempo restante, y la orden sigue abierta. Cualquier mecánico asignado puede retomarlo.</p>
@@ -677,9 +875,10 @@ async function vOrden(id){
     st.refresh = null;
     const ck = tipo === 'final' ? o.checklist_final : o.checklist;
     const zona = $('#ck-' + tipo), cuerpo = zona.querySelector('.ck-cuerpo');
-    cuerpo.innerHTML = `${ck ? selloChecklist(ck) : ''}${formChecklist(tipo === 'final' ? 'final' : o.tipo_checklist, ck?.datos)}
+    cuerpo.innerHTML = `${ck ? selloChecklist(ck) : ''}${formChecklist(tipo === 'final' ? 'final' : o.tipo_checklist, ck?.datos, id)}
       <div class="fila" style="margin-top:12px"><button class="btn pri" data-g>Guardar</button><button class="btn sec" data-c>Cancelar</button></div>`;
     zona.querySelector('[data-ck-editar]')?.remove();
+    activarFotos(cuerpo, id); pintarFotos(cuerpo);
     cuerpo.querySelector('[data-c]').onclick = () => vOrden(id);
     cuerpo.querySelector('[data-g]').onclick = accion(async () => {
       const b = leerChecklist(cuerpo);
@@ -724,9 +923,9 @@ async function vOrden(id){
 function camposCoche(c){
   return `<div class="grid">
     <label>Matrícula<input name="matricula" value="${esc(c.matricula || '')}" required></label>
-    <label>Marca<input name="marca" value="${esc(c.marca || '')}" required></label>
-    <label>Modelo<input name="modelo" value="${esc(c.modelo || '')}" required></label>
-    <label>Año<input name="anio" type="number" min="1900" max="2100" value="${esc(c.anio || '')}"></label>
+    <label class="combo">Marca<input name="marca" value="${esc(c.marca || '')}" placeholder="Escribe y elige" required></label>
+    <label class="combo">Modelo<input name="modelo" value="${esc(c.modelo || '')}" placeholder="Escribe y elige" required></label>
+    <label class="combo">Año<input name="anio" inputmode="numeric" maxlength="4" value="${esc(c.anio || '')}"></label>
     <label>Kilómetros<input name="km" type="number" min="0" value="${esc(c.km ?? '')}"></label>
     <label>Carrocería<select name="carroceria">${Object.entries(CARROCERIAS).map(([k,v]) => `<option value="${k}" ${c.carroceria === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
     <label>Color<input name="color" type="color" value="${esc(c.color || '#3A6EA5')}"></label>
@@ -742,6 +941,7 @@ function leerCoche(root){
   return c;
 }
 function enlazarPreview(root, prev){
+  combosCoche(root);
   const pintar = () => { try { const c = leerCocheParcial(root); prev.innerHTML = cocheSVG(c) +
     `<div class="fila entre" style="padding:6px 0 10px"><strong>${esc(c.marca || 'Marca')} ${esc(c.modelo || 'modelo')}</strong>${c.matricula ? placa(c.matricula.toUpperCase()) : ''}</div>`; } catch(e){} };
   root.addEventListener('input', pintar); pintar();
@@ -822,6 +1022,81 @@ async function vNuevaOrden(){
   });
 }
 
+/* ═════════ ADMIN: datos del taller ═════════ */
+function reducirImagen(file, max = 400, calidad = 0.85){
+  return new Promise((res, rej) => {
+    if (!file.type.startsWith('image/')) return rej(new Error('Elige un archivo de imagen'));
+    const img = new Image();
+    img.onload = () => {
+      const e = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * e); c.height = Math.round(img.height * e);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      // PNG si la imagen puede tener transparencia, si no JPEG, que pesa menos
+      const png = /png|webp|svg/i.test(file.type);
+      res(c.toDataURL(png ? 'image/png' : 'image/jpeg', calidad));
+    };
+    img.onerror = () => { URL.revokeObjectURL(img.src); rej(new Error('No se pudo leer la imagen')); };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function vTaller(){
+  marcar('taller'); st.refresh = null;
+  let logo = TALLER.logo || null, borrar = false;
+  app(`<h1>Mi taller</h1>
+  <div class="dos">
+    <section class="panel">
+      <h2>Logo</h2>
+      <p class="suave">Sale en la cabecera de la app. Lo mejor es un PNG con fondo transparente.</p>
+      <div id="t-prev" class="logo-prev">${logo ? `<img src="${esc(logo)}" alt="Logo del taller">` : '<span class="suave">Sin logo</span>'}</div>
+      <div class="fila" style="margin-top:10px">
+        <label class="btn sec">Elegir imagen<input type="file" accept="image/*" id="t-file" hidden></label>
+        ${logo ? '<button class="btn peligro" id="t-quitar">Quitar logo</button>' : ''}
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Datos</h2>
+      <p class="suave">Son los datos del taller, para la cabecera y los documentos.</p>
+      <div class="pila" style="margin-top:10px">
+        <label>Nombre<input id="t-nombre" value="${esc(TALLER.nombre || '')}"></label>
+        <label>Dirección<input id="t-dir" value="${esc(TALLER.direccion || '')}"></label>
+        <div class="grid" style="margin:0">
+          <label>Teléfono<input id="t-tel" value="${esc(TALLER.telefono || '')}"></label>
+          <label>CIF<input id="t-cif" value="${esc(TALLER.cif || '')}"></label>
+        </div>
+        <label>Email<input id="t-email" type="email" value="${esc(TALLER.email || '')}"></label>
+        <button class="btn pri" id="t-guardar">Guardar</button>
+      </div>
+    </section>
+  </div>`);
+  $('#t-file').onchange = async e => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    try {
+      logo = await reducirImagen(f); borrar = false;
+      $('#t-prev').innerHTML = `<img src="${esc(logo)}" alt="Logo del taller">`;
+      toast('Logo listo. Pulsa Guardar para dejarlo fijo');
+    } catch(x){ toast(x.message, true); }
+  };
+  $('#t-quitar')?.addEventListener('click', () => {
+    logo = null; borrar = true;
+    $('#t-prev').innerHTML = '<span class="suave">Sin logo</span>';
+    toast('Se quitará al guardar');
+  });
+  $('#t-guardar').onclick = accion(async () => {
+    await rpc('guardar_taller', {p_nombre: $('#t-nombre').value, p_logo: borrar ? null : logo,
+      p_direccion: $('#t-dir').value, p_telefono: $('#t-tel').value,
+      p_email: $('#t-email').value, p_cif: $('#t-cif').value, p_borrar_logo: borrar});
+    TALLER = await ok(sb.from('talleres').select('*').eq('id', yo.taller_id).single());
+    yo.taller = TALLER.nombre;
+    cabecera(); marcar('taller');
+    toast('Datos del taller guardados');
+    vTaller();
+  });
+}
+
 /* ═════════ ADMIN: mecánicos ═════════ */
 async function vMecanicos(){
   marcar('mecanicos'); st.refresh = null;
@@ -874,14 +1149,98 @@ async function vCoches(){
   on('[data-c]', 'click', e => dlg(coches.find(c => c.id === +e.currentTarget.dataset.c)));
 }
 
+/* ═════════ ADMIN: informe del coche ═════════ */
+function filaCk(tipo, ck){
+  if (!ck) return '<p class="suave">No se hizo.</p>';
+  const it = ck.datos.items;
+  return `<p class="suave">Realizado el ${fmtFecha(ck.creado)} por ${esc(ck.realizado_por)}${
+    ck.modificado ? `. Modificado el ${fmtFecha(ck.modificado)} por ${esc(ck.modificado_por)}` : ''}</p>
+    <table><tbody>${PLANT[tipo].map(p => {
+      const v = it[p.id] || {};
+      return `<tr><td>${esc(p.texto)}</td><td><strong>${CK_ETQ[v.estado] || ''}</strong></td>
+        <td>${esc(v.nota || '')}${(v.fotos || []).length
+          ? `<div class="fotos">${v.fotos.map(f => `<span class="mini"><img data-foto="${esc(f)}" alt=""></span>`).join('')}</div>` : ''}</td></tr>`;
+    }).join('')}</tbody></table>
+    ${ck.datos.km ? `<p>Kilómetros: ${Number(ck.datos.km).toLocaleString('es-ES')}</p>` : ''}
+    ${ck.datos.observaciones ? `<p>Observaciones: ${esc(ck.datos.observaciones)}</p>` : ''}`;
+}
+async function vInforme(id){
+  marcar('ordenes'); st.refresh = null;
+  const [o, avisos] = await Promise.all([DB.orden(id), DB.avisosDeOrden(id).catch(() => [])]);
+  const tot = o.sesiones.reduce((a, x) => a + ((x.fin || srvAhora()) - x.inicio), 0);
+  const mecs = [...new Set(o.sesiones.map(x => x.mecanico))];
+  app(`<div class="fila cab no-print">
+      <button class="lnk" id="volver">Volver a la orden</button>
+      <button class="btn pri" id="imprimir">Imprimir o guardar en PDF</button>
+    </div>
+    <div class="panel informe">
+      <header class="inf-cab">
+        <div>${TALLER?.logo ? `<img class="inf-logo" src="${esc(TALLER.logo)}" alt="">` : `<h2>${esc(TALLER?.nombre || '')}</h2>`}</div>
+        <div class="derecha suave">
+          ${TALLER?.logo ? `<div><strong>${esc(TALLER.nombre || '')}</strong></div>` : ''}
+          ${TALLER?.direccion ? `<div>${esc(TALLER.direccion)}</div>` : ''}
+          ${TALLER?.telefono ? `<div>Tel. ${esc(TALLER.telefono)}</div>` : ''}
+          ${TALLER?.email ? `<div>${esc(TALLER.email)}</div>` : ''}
+          ${TALLER?.cif ? `<div>CIF ${esc(TALLER.cif)}</div>` : ''}
+        </div>
+      </header>
+      <h1>Informe de reparación</h1>
+      <p class="suave">Orden ${o.id}, ${esc(o.tipo_revision)}. Entrada el ${fmtFecha(o.creado)}${o.cerrado ? `, salida el ${fmtFecha(o.cerrado)}` : ''}.</p>
+
+      <div class="inf-coche">
+        <div class="escena">${cocheSVG(o.coche)}</div>
+        <div>
+          <h2>${esc(o.coche.marca)} ${esc(o.coche.modelo)}</h2>
+          <p>${placa(o.coche.matricula)}</p>
+          <p class="suave">${datosCoche(o.coche)}${o.coche.vin ? `<br>Bastidor: ${esc(o.coche.vin)}` : ''}</p>
+        </div>
+      </div>
+
+      <h2>Reparaciones</h2>
+      <table><thead><tr><th>Reparación</th><th>Estado</th><th>Asignado</th><th>Real</th><th>Hecha por</th><th>Fecha</th></tr></thead>
+        <tbody>${o.tareas.map(t => `<tr><td>${esc(t.titulo)}${t.descripcion ? `<div class="suave">${esc(t.descripcion)}</div>` : ''}</td>
+          <td>${t.estado === 'finalizada' ? 'Hecha' : 'Pendiente'}</td><td>${fmtMin(t.seg_asignados)}</td>
+          <td>${t.seg_reales == null ? '—' : fmtMin(t.seg_reales)}</td><td>${esc(t.finalizada_por || '—')}</td>
+          <td>${t.finalizada ? fmtFecha(t.finalizada) : '—'}</td></tr>`).join('') || '<tr><td colspan="6">Sin reparaciones.</td></tr>'}</tbody></table>
+      <p>Tiempo asignado a las reparaciones: <strong>${fmtMin(o.seg_total)}</strong>.
+         Con los dos checklists (12 min): <strong>${fmtMin(o.seg_informe)}</strong>.
+         Tiempo real trabajado: <strong>${fmtMin(o.seg_reales)}</strong>.</p>
+      ${mecs.length ? `<p class="suave">Mecánicos: ${mecs.map(esc).join(', ')}. Suma de turnos: ${fmtMin(tot)}.</p>` : ''}
+
+      <h2>Checklist ${o.tipo_checklist === 'basico' ? 'básico' : 'completo'} de entrada</h2>
+      ${filaCk(o.tipo_checklist, o.checklist)}
+
+      <h2>Control final</h2>
+      ${filaCk('final', o.checklist_final)}
+
+      ${avisos.length ? `<h2>Incidencias y notas</h2>
+        <table><tbody>${avisos.filter(a => a.tipo !== 'tarea').map(a => `<tr><td>${fmtFecha(a.creado)}</td>
+          <td>${TIPO_AVISO[a.tipo] || ''}</td><td>${esc(a.mecanico)}</td>
+          <td>${esc(a.texto)}${(a.fotos || []).length ? `<div class="fotos">${a.fotos.map(f => `<span class="mini"><img data-foto="${esc(f)}" alt=""></span>`).join('')}</div>` : ''}</td></tr>`).join('')}</tbody></table>` : ''}
+
+      <div class="firmas">
+        <div>Técnico<span></span></div>
+        <div>Control<span></span></div>
+        <div>Cliente<span></span></div>
+      </div>
+      <p class="suave" style="margin-top:14px">Documento generado el ${fmtFecha(srvAhora())}.</p>
+    </div>`);
+  $('#volver').onclick = () => vOrden(id);
+  $('#imprimir').onclick = () => window.print();
+}
+
 /* ═════════ ADMIN: avisos ═════════ */
-const TIPO_AVISO = {incidencia:'Incidencia', nota:'Nota', fin_turno:'Fin de turno'};
+const TIPO_AVISO = {incidencia:'Incidencia', nota:'Nota', fin_turno:'Fin de turno',
+                    tarea:'Reparación hecha', fin_trabajo:'Coche terminado'};
 const avisosVistos = new Set();
+const fotosAviso = a => (a.fotos || []).length
+  ? `<div class="fotos">${a.fotos.map(f => `<span class="mini"><img data-foto="${esc(f)}" alt="Foto del aviso"></span>`).join('')}</div>` : '';
 function cajaAviso(a){
   const caja = document.createElement('div');
   caja.className = 'aviso a-' + a.tipo;
   caja.innerHTML = `<div class="fila entre"><strong>${TIPO_AVISO[a.tipo]}</strong><span class="suave">${fmtFecha(a.creado)}</span></div>
     <p>${esc(a.texto)}</p>
+    ${fotosAviso(a)}
     <p class="suave">${esc(a.mecanico)}${a.matricula ? ', ' + esc(a.matricula) : ''}${a.tipo === 'incidencia' ? '. El tiempo de ese coche está parado' : ''}</p>
     <div class="fila"><button class="btn sec" data-ver>Ver coche</button><button class="btn sec" data-ok>Marcar leído</button></div>`;
   const quitar = () => caja.remove();
@@ -896,6 +1255,7 @@ function cajaAviso(a){
     try { await rpc('marcar_avisos', {p_ids: [a.id]}); contarAvisos(); } catch(x){ toast(x.message, true); }
   };
   $('#avisos').appendChild(caja);
+  pintarFotos(caja);
   setTimeout(quitar, 60000);   // la caja se va sola al minuto; el aviso sigue sin leer
 }
 async function contarAvisos(){
@@ -917,10 +1277,11 @@ async function vAvisos(){
   app(`<div class="fila cab"><h1>Avisos</h1>
     ${sinLeer ? '<button class="btn sec" id="a-todos">Marcar todos como leídos</button>' : ''}</div>
     ${avisos.length ? `<div class="pila">${avisos.map(a => `<div class="panel aviso-fila${a.leido ? ' leido' : ''}">
-      <div class="fila entre"><div><span class="estado e-${a.tipo === 'incidencia' ? 'cancelada' : 'abierta'}">${TIPO_AVISO[a.tipo]}</span>
+      <div class="fila entre"><div><span class="estado e-${a.tipo === 'incidencia' ? 'cancelada' : a.tipo === 'fin_trabajo' ? 'finalizada' : 'abierta'}">${TIPO_AVISO[a.tipo]}</span>
         <strong style="margin-left:8px">${esc(a.mecanico)}</strong></div>
         <span class="suave">${fmtFecha(a.creado)}</span></div>
       <p>${esc(a.texto)}</p>
+      ${fotosAviso(a)}
       <div class="fila entre">
         <span class="suave">${esc(a.matricula)}, orden ${a.orden_id}${a.leido ? `. Leído el ${fmtFecha(a.leido)}` : ''}</span>
         <span class="fila"><button class="btn sec" data-ir="${a.orden_id}">Ver coche</button>
@@ -1022,7 +1383,7 @@ async function mInicio(){
   st.refresh = mInicio;
 }
 
-async function mOrden(id){
+async function mOrden(id, trasMarcar){
   marcar('inicio');
   let o;
   try { o = await DB.orden(id); }
@@ -1046,7 +1407,8 @@ async function mOrden(id){
     </section>` : ''}
   </div>`);
   $('#volver').onclick = () => mInicio();
-  const recargar = () => mOrden(id);
+  document.querySelectorAll('#app .ck-cuerpo').forEach(z => activarFotos(z, id));
+  const recargar = marcada => mOrden(id, marcada === true);
   on('[data-ck-guardar]', 'click', e => {
     const tipo = e.currentTarget.dataset.ckGuardar;
     const zona = $('#ck-' + tipo).querySelector('.ck-cuerpo');
@@ -1077,7 +1439,7 @@ async function mOrden(id){
     dialogo('<h2>Finalizar el trabajo</h2><p>El coche quedará terminado y se parará el tiempo para todos los que estén en él. No se puede deshacer.</p>',
       'Finalizar', async () => { await rpc('terminar_orden', {p_orden: id, p_motivo: 'finalizada'}); toast('Trabajo finalizado'); mInicio(); }, 'ok');
   });
-  on('[data-turno]', 'click', async () => {
+  const dlgFinTurno = async () => {
     const comp = await DB.companeros().catch(() => []);
     dialogo(`<h2>Fin de turno</h2>
       <p>El coche queda a medias y quien lo continúe recibirá el tiempo restante y las reparaciones sin marcar.</p>
@@ -1090,7 +1452,22 @@ async function mOrden(id){
           p_relevo: d.querySelector('#d-rel').value || null, p_nota: d.querySelector('#d-nota').value});
         toast('Turno cerrado'); mInicio();
       });
-  });
+  };
+  on('[data-turno]', 'click', dlgFinTurno);
+  if (trasMarcar && o.estado === 'abierta'){
+    if (todas){
+      dialogo(`<h2>Reparación marcada</h2>
+        <p>Ya están todas hechas. Falta el <strong>control final</strong> para poder entregar el coche.</p>
+        <p><strong>El tiempo sigue corriendo</strong> mientras decides.</p>`,
+        'Hacer control final', async () => { $('#ck-final')?.scrollIntoView({behavior:'smooth', block:'center'}); },
+        'pri', {cancel: null, extra: {txt: 'Fin de turno', fn: dlgFinTurno}});
+    } else {
+      dialogo(`<h2>Reparación marcada</h2>
+        <p>Quedan ${o.n_tareas - o.n_finalizadas} por hacer, con ${fmtMin(o.seg_pendiente)} de tiempo.</p>
+        <p>¿Sigues con la siguiente o cierras el turno? <strong>El tiempo sigue corriendo</strong> mientras decides.</p>`,
+        'Seguir trabajando', async () => {}, 'pri', {cancel: null, extra: {txt: 'Fin de turno', fn: dlgFinTurno}});
+    }
+  }
   // si hay un checklist a medio rellenar, no refrescar para no borrarlo
   st.refresh = $('.ck-cuerpo .ck') ? null : () => mOrden(id);
 }
