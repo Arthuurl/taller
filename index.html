@@ -31,6 +31,13 @@ header#top::after{content:"";display:block;height:6px;background:repeating-linea
 .fotos.subiendo{opacity:.5;pointer-events:none}
 .mini{position:relative;display:inline-block;line-height:0}
 .mini img{width:62px;height:62px;object-fit:cover;border-radius:4px;border:1px solid var(--linea);background:#EDF1F4;cursor:zoom-in}
+.mini.elegible{cursor:pointer;opacity:.55}
+.mini.elegible.elegida{opacity:1}
+.mini.elegible i{position:absolute;inset:auto 2px 2px auto;width:22px;height:22px;border-radius:50%;
+  background:#fff;border:1px solid var(--linea);color:transparent;font:700 13px/22px Barlow,system-ui,sans-serif;text-align:center}
+.mini.elegible.elegida i{background:var(--verde);border-color:var(--verde);color:#fff}
+.mini.elegible.elegida img{border-color:var(--verde);border-width:2px}
+.fotos.grandes .mini img{width:190px;height:150px}
 .mini .quitar{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;border:0;
   background:var(--rojo);color:#fff;font:700 14px/1 Barlow,system-ui,sans-serif;cursor:pointer}
 .ficha{margin-bottom:16px;border-left:5px solid var(--amar)}
@@ -141,6 +148,7 @@ label.combo{position:relative}
 .aviso{background:#fff;border:1px solid var(--linea);border-left:5px solid var(--azul);border-radius:6px;padding:12px;box-shadow:0 6px 20px rgba(27,39,51,.18);animation:entra .25s ease-out}
 .aviso.a-incidencia{border-left-color:var(--rojo)}
 .aviso.a-fin_trabajo{border-left-color:var(--verde)}
+.aviso.a-pausa{border-left-color:#A06A00}
 .aviso.a-tarea{border-left-color:var(--verde)}
 .aviso p{margin:6px 0}
 @keyframes entra{from{opacity:0;transform:translateX(20px)}}
@@ -299,6 +307,7 @@ function normOrden(o){
     activos: ses.filter(x => !x.fin).map(x => ({id: x.mecanico_id, nombre: nom(x.mecanico_id)})),
     relevo: rel ? {de: nom(rel.mecanico_id), para: rel.relevo_id ? nom(rel.relevo_id) : null, nota: rel.nota, fin: ts(rel.fin)} : null,
     n_tareas: tareas.length, n_finalizadas: tareas.filter(t => t.estado === 'finalizada').length,
+    fotos_informe: [].concat(o.fotos_informe || []),
     sesiones: ses.map(x => ({mecanico: nom(x.mecanico_id), inicio: ts(x.inicio), fin: ts(x.fin),
       motivo: x.motivo, nota: x.nota, relevo: x.relevo_id ? nom(x.relevo_id) : null}))
       .sort((a, b) => a.inicio - b.inicio),
@@ -411,7 +420,7 @@ async function pintarFotos(raiz = document){
 }
 document.addEventListener('click', e => {
   const im = e.target.closest('img[data-foto]');
-  if (im && im.src) window.open(im.src, '_blank');
+  if (im && im.src && !e.target.closest('.picker')) window.open(im.src, '_blank');
 });
 const fotosDe = raiz => [...raiz.querySelectorAll('input[name=foto]')].map(i => i.value);
 const miniatura = f => `<span class="mini"><img data-foto="${esc(f)}" alt="Foto del checklist">
@@ -766,7 +775,7 @@ function bloqueTrabajo(o, modo){
     if (trabajando){
       const puedeTerminar = todas && o.checklist_final;
       acc = `<button class="btn ok" data-fin="${o.id}" ${puedeTerminar ? '' : 'disabled'}>Finalizar trabajo</button>
-             <button class="btn sec" data-turno="${o.id}">Fin de turno</button>
+             <button class="btn sec" data-pausar="${o.id}">Pausar</button>
              <button class="btn sec" data-nota="${o.id}">Nota al taller</button>
              ${puedeTerminar ? '' : `<span class="suave">${todas ? 'Haz el control final para poder terminar' : 'Marca todas las reparaciones'}</span>`}`;
     } else {
@@ -795,18 +804,10 @@ function bloqueTrabajo(o, modo){
     ${acc ? `<div class="fila" style="margin-top:12px">${acc}</div>` : ''}
   </article>`;
 }
-function accionesMecanico(o, recargar){
+function accionesMecanico(o, recargar, dlgIncidencia){
   on('[data-incidencia]', 'click', e => {
     const tid = +e.currentTarget.dataset.incidencia;
-    const t = o.tareas.find(x => x.id === tid);
-    dialogo(`<h2>Incidencia en «${esc(t.titulo)}»</h2>
-      <p>Se <strong>parará el tiempo</strong> del coche y le llegará un aviso a la oficina. Podrás continuar cuando se resuelva.</p>
-      <label style="margin-top:10px">¿Qué ha pasado?<textarea id="d-nota" rows="4" placeholder="Falta una pieza, el tornillo está pasado de rosca..."></textarea></label>
-      <div class="fotos"><label class="btn sec foto-btn">Añadir foto<input type="file" accept="image/*" capture="environment" hidden data-subir></label></div>`,
-      'Enviar y parar el tiempo', async d => {
-        await rpc('crear_incidencia', {p_tarea: tid, p_nota: d.querySelector('#d-nota').value, p_fotos: fotosDe(d)});
-        toast('Incidencia enviada. El tiempo está parado'); recargar();
-      }, 'peligro', {alAbrir: d => activarFotos(d, o.id)});
+    dlgIncidencia(o.tareas.find(x => x.id === tid));
   });
   on('[data-nota]', 'click', () => {
     dialogo(`<h2>Nota al taller</h2>
@@ -1381,8 +1382,7 @@ function filaCk(tipo, ck, cliente){
     <table><tbody>${PLANT[tipo].map(p => {
       const v = it[p.id] || {};
       return `<tr><td>${esc(p.texto)}</td><td><strong>${CK_ETQ[v.estado] || ''}</strong></td>
-        <td>${esc(v.nota || '')}${(v.fotos || []).length
-          ? `<div class="fotos">${v.fotos.map(f => `<span class="mini"><img data-foto="${esc(f)}" alt=""></span>`).join('')}</div>` : ''}</td></tr>`;
+        <td>${esc(v.nota || '')}</td></tr>`;
     }).join('')}</tbody></table>
     ${ck.datos.km ? `<p>Kilómetros: ${Number(ck.datos.km).toLocaleString('es-ES')}</p>` : ''}
     ${ck.datos.observaciones ? `<p>Observaciones: ${esc(ck.datos.observaciones)}</p>` : ''}`;
@@ -1392,6 +1392,9 @@ async function vInforme(id, cliente = false){
   const [o, avisos] = await Promise.all([DB.orden(id), DB.avisosDeOrden(id).catch(() => [])]);
   const tot = o.sesiones.reduce((a, x) => a + ((x.fin || srvAhora()) - x.inicio), 0);
   const mecs = [...new Set(o.sesiones.map(x => x.mecanico))];
+  const deCk = ck => ck ? Object.values(ck.datos.items || {}).flatMap(v => v.fotos || []) : [];
+  const todasFotos = [...new Set([...deCk(o.checklist), ...deCk(o.checklist_final), ...avisos.flatMap(a => a.fotos || [])])];
+  let elegidas = o.fotos_informe.filter(f => todasFotos.includes(f));
   app(`<div class="fila cab no-print">
       <button class="lnk" id="volver">Volver a la orden</button>
       <div class="fila">
@@ -1400,6 +1403,13 @@ async function vInforme(id, cliente = false){
         <button class="btn ok" id="imprimir">Imprimir o guardar en PDF</button>
       </div>
     </div>
+    ${todasFotos.length ? `<div class="panel no-print" style="margin-bottom:16px">
+      <div class="fila entre"><h2 style="margin:0">Fotos del informe</h2>
+        <button class="btn sec" id="f-guardar">Guardar selección</button></div>
+      <div class="fotos picker" style="margin-top:10px">${todasFotos.map(f =>
+        `<span class="mini elegible${elegidas.includes(f) ? ' elegida' : ''}" data-elegir="${esc(f)}">
+          <img data-foto="${esc(f)}" alt=""><i>✓</i></span>`).join('')}</div>
+    </div>` : ''}
     <div class="panel informe">
       <header class="inf-cab">
         <div>${TALLER?.logo ? `<img class="inf-logo" src="${esc(TALLER.logo)}" alt="">` : `<h2>${esc(TALLER?.nombre || '')}</h2>`}</div>
@@ -1443,7 +1453,10 @@ async function vInforme(id, cliente = false){
       ${!cliente && avisos.length ? `<h2>Incidencias y notas</h2>
         <table><tbody>${avisos.filter(a => a.tipo !== 'tarea').map(a => `<tr><td>${fmtFecha(a.creado)}</td>
           <td>${TIPO_AVISO[a.tipo] || ''}</td><td>${esc(a.mecanico)}</td>
-          <td>${esc(a.texto)}${(a.fotos || []).length ? `<div class="fotos">${a.fotos.map(f => `<span class="mini"><img data-foto="${esc(f)}" alt=""></span>`).join('')}</div>` : ''}</td></tr>`).join('')}</tbody></table>` : ''}
+          <td>${esc(a.texto)}</td></tr>`).join('')}</tbody></table>` : ''}
+
+      ${elegidas.length ? `<h2>Fotos</h2><div class="fotos grandes">${elegidas.map(f =>
+        `<span class="mini"><img data-foto="${esc(f)}" alt="Foto del coche"></span>`).join('')}</div>` : ''}
 
       <div class="firmas">
         ${cliente ? '' : '<div>Técnico<span></span></div>'}
@@ -1455,11 +1468,21 @@ async function vInforme(id, cliente = false){
   $('#volver').onclick = () => vOrden(id);
   $('#imprimir').onclick = () => window.print();
   on('[data-modo]', 'click', e => vInforme(id, e.currentTarget.dataset.modo === 'cliente'));
+  on('[data-elegir]', 'click', e => {
+    const el = e.currentTarget, f = el.dataset.elegir;
+    el.classList.toggle('elegida');
+    elegidas = el.classList.contains('elegida') ? [...elegidas, f] : elegidas.filter(x => x !== f);
+  });
+  $('#f-guardar')?.addEventListener('click', accion(async () => {
+    await rpc('guardar_fotos_informe', {p_orden: id, p_fotos: elegidas});
+    toast(elegidas.length ? `${elegidas.length} foto${elegidas.length > 1 ? 's' : ''} en el informe` : 'El informe saldrá sin fotos');
+    vInforme(id, cliente);
+  }));
 }
 
 /* ═════════ ADMIN: avisos ═════════ */
 const TIPO_AVISO = {incidencia:'Incidencia', nota:'Nota', fin_turno:'Fin de turno',
-                    tarea:'Reparación hecha', fin_trabajo:'Coche terminado'};
+                    tarea:'Reparación hecha', fin_trabajo:'Coche terminado', pausa:'Pausa'};
 const avisosVistos = new Set();
 const fotosAviso = a => (a.fotos || []).length
   ? `<div class="fotos">${a.fotos.map(f => `<span class="mini"><img data-foto="${esc(f)}" alt="Foto del aviso"></span>`).join('')}</div>` : '';
@@ -1703,7 +1726,7 @@ async function mOrden(id, trasMarcar){
     });
   });
   marcarReparaciones(recargar);
-  accionesMecanico(o, recargar);
+  accionesMecanico(o, recargar, t => dlgIncidencia(t));
   on('[data-empezar]', 'click', accion(async () => {
     await rpc('iniciar_orden', {p_orden: id}); toast('Tiempo en marcha'); recargar();
   }));
@@ -1711,6 +1734,28 @@ async function mOrden(id, trasMarcar){
     dialogo('<h2>Finalizar el trabajo</h2><p>El coche quedará terminado y se parará el tiempo para todos los que estén en él. No se puede deshacer.</p>',
       'Finalizar', async () => { await rpc('terminar_orden', {p_orden: id, p_motivo: 'finalizada'}); toast('Trabajo finalizado'); mInicio(); }, 'ok');
   });
+  const dlgIncidencia = (tarea) => {
+    dialogo(`<h2>Incidencia${tarea ? ` en «${esc(tarea.titulo)}»` : ''}</h2>
+      <p>Se <strong>parará el tiempo</strong> del coche y le llegará un aviso a la oficina. Podrás continuar cuando se resuelva.</p>
+      ${tarea ? '' : `<label style="margin-top:10px">¿En qué reparación?<select id="d-tarea"><option value="">En el coche en general</option>
+        ${o.tareas.filter(t => t.estado !== 'finalizada').map(t => `<option value="${t.id}">${esc(t.titulo)}</option>`).join('')}</select></label>`}
+      <label style="margin-top:10px">¿Qué ha pasado?<textarea id="d-nota" rows="4" placeholder="Falta una pieza, el tornillo está pasado de rosca..."></textarea></label>
+      <div class="fotos"><label class="btn sec foto-btn">Añadir foto<input type="file" accept="image/*" capture="environment" hidden data-subir></label></div>`,
+      'Enviar y parar el tiempo', async d => {
+        await rpc('crear_incidencia', {p_orden: o.id, p_nota: d.querySelector('#d-nota').value,
+          p_tarea: tarea ? tarea.id : (+d.querySelector('#d-tarea').value || null), p_fotos: fotosDe(d)});
+        toast('Incidencia enviada. El tiempo está parado'); recargar();
+      }, 'peligro', {alAbrir: d => activarFotos(d, o.id)});
+  };
+  const dlgOtro = () => {
+    dialogo(`<h2>Pausar el trabajo</h2>
+      <p>Se parará el tiempo del coche y la oficina verá el motivo.</p>
+      <label style="margin-top:10px">Motivo<textarea id="d-mot" rows="3" placeholder="Voy a por una pieza al almacén"></textarea></label>`,
+      'Pausar', async d => {
+        await rpc('pausar_orden', {p_orden: o.id, p_motivo: d.querySelector('#d-mot').value});
+        toast('Trabajo pausado'); mInicio();
+      });
+  };
   const dlgFinTurno = async () => {
     const comp = await DB.companeros().catch(() => []);
     dialogo(`<h2>Fin de turno</h2>
@@ -1725,7 +1770,21 @@ async function mOrden(id, trasMarcar){
         toast('Turno cerrado'); mInicio();
       });
   };
-  on('[data-turno]', 'click', dlgFinTurno);
+  on('[data-pausar]', 'click', () => {
+    dialogo(`<h2>Pausar el trabajo</h2><p>¿Por qué paras? El tiempo del coche se detendrá.</p>
+      <div class="pila" style="margin-top:12px">
+        <button class="btn peligro" data-p="incidencia" style="width:100%">Incidencia</button>
+        <button class="btn sec" data-p="turno" style="width:100%">Fin de turno o descanso</button>
+        <button class="btn sec" data-p="otro" style="width:100%">Otro motivo</button>
+      </div>`, 'Cancelar', async () => {}, 'sec', {cancel: null});
+    const d = $('#dlg');
+    d.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
+      d.close();
+      if (b.dataset.p === 'incidencia') dlgIncidencia(null);
+      else if (b.dataset.p === 'turno') dlgFinTurno();
+      else dlgOtro();
+    });
+  });
   if (trasMarcar && o.estado === 'abierta'){
     if (todas){
       dialogo(`<h2>Reparación marcada</h2>

@@ -55,12 +55,14 @@ create table if not exists public.ordenes(
   seg_tarea numeric not null default 0,        -- tiempo dedicado a la reparación en curso
   cuenta_mecanico uuid references public.perfiles(id),
   seg_totales numeric not null default 0,      -- tiempo real total del coche
+  fotos_informe jsonb not null default '[]'::jsonb,
   en_marcha_desde timestamptz,
   creado timestamptz not null default now(),
   cerrado timestamptz);
 alter table public.ordenes add column if not exists seg_consumidos numeric not null default 0;
 alter table public.ordenes add column if not exists seg_totales numeric not null default 0;
 alter table public.ordenes add column if not exists seg_tarea numeric not null default 0;
+alter table public.ordenes add column if not exists fotos_informe jsonb not null default '[]'::jsonb;
 alter table public.ordenes add column if not exists cuenta_mecanico uuid references public.perfiles(id);
 alter table public.ordenes add column if not exists en_marcha_desde timestamptz;
 
@@ -130,7 +132,7 @@ create table if not exists public.avisos(
   orden_id bigint not null references public.ordenes(id) on delete cascade,
   tarea_id bigint references public.tareas(id) on delete set null,
   mecanico_id uuid not null references public.perfiles(id),
-  tipo text not null check (tipo in ('incidencia','nota','fin_turno','tarea','fin_trabajo')),
+  tipo text not null check (tipo in ('incidencia','nota','fin_turno','tarea','fin_trabajo','pausa')),
   texto text not null,
   fotos jsonb not null default '[]'::jsonb,
   creado timestamptz not null default now(),
@@ -140,7 +142,7 @@ create index if not exists ix_avisos_taller on public.avisos(taller_id, leido);
 alter table public.avisos add column if not exists fotos jsonb not null default '[]'::jsonb;
 alter table public.avisos drop constraint if exists avisos_tipo_check;
 alter table public.avisos add constraint avisos_tipo_check
-  check (tipo in ('incidencia','nota','fin_turno','tarea','fin_trabajo'));
+  check (tipo in ('incidencia','nota','fin_turno','tarea','fin_trabajo','pausa'));
 
 create table if not exists public.fichajes(
   id bigint generated always as identity primary key,
@@ -870,6 +872,7 @@ end $$;
 
 -- ─────────────── Incidencias y avisos a la oficina ───────────────
 drop function if exists public.crear_incidencia(bigint, text);
+drop function if exists public.crear_incidencia(bigint, text, jsonb);
 drop function if exists public.crear_nota(bigint, text, bigint);
 
 create or replace function public._fotos(p jsonb) returns jsonb
@@ -879,17 +882,19 @@ language sql immutable as $$
     limit 6) z), '[]'::jsonb)
 $$;
 
-create or replace function public.crear_incidencia(p_tarea bigint, p_nota text, p_fotos jsonb default '[]'::jsonb) returns void
+create or replace function public.crear_incidencia(p_orden bigint, p_nota text,
+        p_tarea bigint default null, p_fotos jsonb default '[]'::jsonb) returns void
 language plpgsql security definer set search_path = public as $$
-declare yo perfiles := public._yo(); t tareas; o ordenes;
+declare yo perfiles := public._yo(); o ordenes;
 begin
   if length(trim(coalesce(p_nota, ''))) < 3 then raise exception 'Escribe qué ha pasado'; end if;
-  select * into t from tareas where id = p_tarea and taller_id = yo.taller_id;
-  if not found then raise exception 'Reparación no encontrada'; end if;
-  select * into o from ordenes where id = t.orden_id for update;
+  select * into o from ordenes where id = p_orden and taller_id = yo.taller_id for update;
+  if not found then raise exception 'Orden no encontrada'; end if;
   if o.estado <> 'abierta' then raise exception 'La orden está cerrada'; end if;
-  if yo.rol = 'mecanico' and not public.tarea_mia(p_tarea) then
-    raise exception 'Esta reparación no está asignada a ti'; end if;
+  if p_tarea is not null and not exists(select 1 from tareas where id = p_tarea and orden_id = o.id) then
+    raise exception 'Reparación no encontrada'; end if;
+  if yo.rol = 'mecanico' and not public.orden_mia(o.id) then
+    raise exception 'Este coche no está asignado a ti'; end if;
   if not exists(select 1 from orden_sesiones where orden_id = o.id and mecanico_id = yo.id and fin is null) then
     raise exception 'Primero tienes que empezar el trabajo'; end if;
   -- la incidencia para el tiempo del coche
@@ -903,6 +908,40 @@ begin
   end if;
   insert into avisos(taller_id, orden_id, tarea_id, mecanico_id, tipo, texto, fotos)
   values (yo.taller_id, o.id, p_tarea, yo.id, 'incidencia', trim(p_nota), public._fotos(p_fotos));
+end $$;
+
+create or replace function public.pausar_orden(p_orden bigint, p_motivo text) returns void
+language plpgsql security definer set search_path = public as $$
+declare yo perfiles := public._yo(); o ordenes;
+begin
+  if length(trim(coalesce(p_motivo, ''))) < 3 then raise exception 'Escribe el motivo de la pausa'; end if;
+  select * into o from ordenes where id = p_orden and taller_id = yo.taller_id for update;
+  if not found then raise exception 'Orden no encontrada'; end if;
+  if not exists(select 1 from orden_sesiones where orden_id = o.id and mecanico_id = yo.id and fin is null) then
+    raise exception 'No estás trabajando en este coche'; end if;
+  update orden_sesiones set fin = now(), motivo = 'fin_turno', nota = 'Pausa: ' || trim(p_motivo)
+   where orden_id = o.id and mecanico_id = yo.id and fin is null;
+  if not exists(select 1 from orden_sesiones where orden_id = o.id and fin is null) then
+    update ordenes set seg_consumidos = o.seg_consumidos + extract(epoch from now() - coalesce(o.en_marcha_desde, now())),
+                       seg_tarea = o.seg_tarea + extract(epoch from now() - coalesce(o.en_marcha_desde, now())),
+                       seg_totales = o.seg_totales + extract(epoch from now() - coalesce(o.en_marcha_desde, now())),
+                       en_marcha_desde = null
+     where id = o.id;
+  end if;
+  insert into avisos(taller_id, orden_id, mecanico_id, tipo, texto)
+  values (yo.taller_id, o.id, yo.id, 'pausa', trim(p_motivo));
+end $$;
+
+create or replace function public.guardar_fotos_informe(p_orden bigint, p_fotos jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  update ordenes set fotos_informe = coalesce((select jsonb_agg(f) from (
+      select f from jsonb_array_elements_text(
+        case when jsonb_typeof(p_fotos) = 'array' then p_fotos else '[]'::jsonb end) f
+      limit 30) z), '[]'::jsonb)
+   where id = p_orden and taller_id = t;
+  if not found then raise exception 'Orden no encontrada'; end if;
 end $$;
 
 create or replace function public.crear_nota(p_orden bigint, p_texto text, p_tarea bigint default null,
