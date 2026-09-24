@@ -142,6 +142,33 @@ alter table public.avisos drop constraint if exists avisos_tipo_check;
 alter table public.avisos add constraint avisos_tipo_check
   check (tipo in ('incidencia','nota','fin_turno','tarea','fin_trabajo'));
 
+create table if not exists public.fichajes(
+  id bigint generated always as identity primary key,
+  taller_id bigint not null references public.talleres(id),
+  mecanico_id uuid not null references public.perfiles(id),
+  tipo text not null check (tipo in ('entrada','descanso','vuelta','fin')),
+  momento timestamptz not null default now());
+create index if not exists ix_fichajes on public.fichajes(taller_id, mecanico_id, momento);
+
+create table if not exists public.turnos_plantilla(
+  id bigint generated always as identity primary key,
+  taller_id bigint not null references public.talleres(id),
+  nombre text not null,
+  hora_inicio time not null,
+  hora_fin time not null,
+  creado timestamptz not null default now());
+
+create table if not exists public.turnos(
+  id bigint generated always as identity primary key,
+  taller_id bigint not null references public.talleres(id),
+  mecanico_id uuid not null references public.perfiles(id),
+  inicio timestamptz not null,
+  fin timestamptz not null,
+  comentario text,
+  creado timestamptz not null default now());
+create index if not exists ix_turnos on public.turnos(taller_id, inicio);
+create index if not exists ix_turnos_mec on public.turnos(mecanico_id, inicio);
+
 -- Un mecánico solo puede estar trabajando en un coche a la vez
 create unique index if not exists un_coche_a_la_vez on public.orden_sesiones(mecanico_id) where fin is null;
 create index if not exists ix_tareas_orden on public.tareas(orden_id);
@@ -249,6 +276,9 @@ alter table public.tareas          enable row level security;
 alter table public.tarea_mecanicos enable row level security;
 alter table public.orden_sesiones  enable row level security;
 alter table public.avisos          enable row level security;
+alter table public.fichajes        enable row level security;
+alter table public.turnos          enable row level security;
+alter table public.turnos_plantilla enable row level security;
 
 drop policy if exists leer on public.talleres;
 create policy leer on public.talleres for select to authenticated using (id = public.mi_taller());
@@ -269,6 +299,17 @@ create policy leer on public.tareas for select to authenticated
 drop policy if exists leer on public.tarea_mecanicos;
 create policy leer on public.tarea_mecanicos for select to authenticated
   using (taller_id = public.mi_taller() and (public.es_admin() or public.tarea_de_orden_mia(tarea_id)));
+drop policy if exists leer on public.turnos;
+create policy leer on public.turnos for select to authenticated
+  using (taller_id = public.mi_taller() and (public.es_admin() or mecanico_id = auth.uid()));
+drop policy if exists leer on public.turnos_plantilla;
+create policy leer on public.turnos_plantilla for select to authenticated
+  using (taller_id = public.mi_taller());
+
+drop policy if exists leer on public.fichajes;
+create policy leer on public.fichajes for select to authenticated
+  using (taller_id = public.mi_taller() and (public.es_admin() or mecanico_id = auth.uid()));
+
 drop policy if exists leer on public.avisos;
 create policy leer on public.avisos for select to authenticated
   using (taller_id = public.mi_taller() and (public.es_admin() or mecanico_id = auth.uid()));
@@ -710,6 +751,121 @@ begin
                      seg_totales = o.seg_totales + extract(epoch from now() - o.en_marcha_desde),
                      en_marcha_desde = null
    where id = p_orden;
+end $$;
+
+-- ─────────────── Turnos ───────────────
+create or replace function public.guardar_plantilla_turno(p_id bigint, p_nombre text,
+        p_inicio time, p_fin time) returns bigint
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin(); v_id bigint;
+begin
+  if length(trim(coalesce(p_nombre,''))) < 2 then raise exception 'Ponle nombre al turno'; end if;
+  if p_inicio = p_fin then raise exception 'Las horas no pueden ser iguales'; end if;
+  if p_id is null then
+    insert into turnos_plantilla(taller_id, nombre, hora_inicio, hora_fin)
+    values (t, trim(p_nombre), p_inicio, p_fin) returning id into v_id;
+  else
+    update turnos_plantilla set nombre = trim(p_nombre), hora_inicio = p_inicio, hora_fin = p_fin
+     where id = p_id and taller_id = t returning id into v_id;
+    if v_id is null then raise exception 'Turno no encontrado'; end if;
+  end if;
+  return v_id;
+end $$;
+
+create or replace function public.borrar_plantilla_turno(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  delete from turnos_plantilla where id = p_id and taller_id = t;
+  if not found then raise exception 'Turno no encontrado'; end if;
+end $$;
+
+create or replace function public.guardar_turno(p_id bigint, p_mecanico uuid, p_inicio timestamptz,
+        p_fin timestamptz, p_comentario text default null) returns bigint
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin(); v_id bigint; v_nombre text;
+begin
+  if p_fin <= p_inicio then raise exception 'El turno tiene que acabar después de empezar'; end if;
+  if p_fin - p_inicio > interval '16 hours' then raise exception 'Un turno no puede durar más de 16 horas'; end if;
+  select nombre into v_nombre from perfiles
+   where id = p_mecanico and taller_id = t and rol = 'mecanico';
+  if v_nombre is null then raise exception 'Ese mecánico no es de este taller'; end if;
+  if exists(select 1 from turnos where mecanico_id = p_mecanico and (p_id is null or id <> p_id)
+            and inicio < p_fin and fin > p_inicio) then
+    raise exception '% ya tiene otro turno a esa hora', v_nombre; end if;
+  if p_id is null then
+    insert into turnos(taller_id, mecanico_id, inicio, fin, comentario)
+    values (t, p_mecanico, p_inicio, p_fin, nullif(trim(coalesce(p_comentario,'')),'')) returning id into v_id;
+  else
+    update turnos set mecanico_id = p_mecanico, inicio = p_inicio, fin = p_fin,
+                      comentario = nullif(trim(coalesce(p_comentario,'')),'')
+     where id = p_id and taller_id = t returning id into v_id;
+    if v_id is null then raise exception 'Turno no encontrado'; end if;
+  end if;
+  return v_id;
+end $$;
+
+create or replace function public.borrar_turno(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  delete from turnos where id = p_id and taller_id = t;
+  if not found then raise exception 'Turno no encontrado'; end if;
+end $$;
+
+-- ─────────────── Fichajes de jornada ───────────────
+create or replace function public.fichar(p_tipo text) returns text
+language plpgsql security definer set search_path = public as $$
+declare yo perfiles := public._yo(); v_ultimo text; o ordenes;
+begin
+  if p_tipo not in ('entrada','descanso','vuelta','fin') then raise exception 'Fichaje no válido'; end if;
+  select tipo into v_ultimo from fichajes where mecanico_id = yo.id order by momento desc, id desc limit 1;
+  v_ultimo := coalesce(v_ultimo, 'fin');
+  if p_tipo = 'entrada' and v_ultimo not in ('fin') then
+    raise exception 'Ya has fichado la entrada'; end if;
+  if p_tipo = 'descanso' and v_ultimo not in ('entrada','vuelta') then
+    raise exception 'Para salir a descansar tienes que estar trabajando'; end if;
+  if p_tipo = 'vuelta' and v_ultimo <> 'descanso' then
+    raise exception 'Solo puedes volver si estás en el descanso'; end if;
+  if p_tipo = 'fin' and v_ultimo = 'fin' then
+    raise exception 'Ya has fichado la salida'; end if;
+  -- salir a descansar o terminar la jornada para el tiempo del coche que se esté llevando
+  if p_tipo in ('descanso','fin') then
+    for o in select ord.* from ordenes ord join orden_sesiones se on se.orden_id = ord.id
+             where se.mecanico_id = yo.id and se.fin is null for update loop
+      update orden_sesiones set fin = now(), motivo = 'fin_turno',
+             nota = case when p_tipo = 'descanso' then 'Salida para descanso' else 'Fin de turno' end
+       where orden_id = o.id and mecanico_id = yo.id and fin is null;
+      if not exists(select 1 from orden_sesiones where orden_id = o.id and fin is null) then
+        update ordenes set seg_consumidos = o.seg_consumidos + extract(epoch from now() - coalesce(o.en_marcha_desde, now())),
+                           seg_tarea = o.seg_tarea + extract(epoch from now() - coalesce(o.en_marcha_desde, now())),
+                           seg_totales = o.seg_totales + extract(epoch from now() - coalesce(o.en_marcha_desde, now())),
+                           en_marcha_desde = null
+         where id = o.id;
+      end if;
+    end loop;
+  end if;
+  insert into fichajes(taller_id, mecanico_id, tipo) values (yo.taller_id, yo.id, p_tipo);
+  return p_tipo;
+end $$;
+
+create or replace function public.historico_fichajes(p_mecanico uuid default null,
+                                                     p_desde timestamptz default null,
+                                                     p_hasta timestamptz default null)
+returns table(momento timestamptz, tipo text, mecanico text, mecanico_id uuid)
+language plpgsql stable security definer set search_path = public as $$
+#variable_conflict use_column
+declare t bigint := public._admin();
+begin
+  return query
+  select f.momento, f.tipo, u.nombre, u.id
+  from fichajes f join perfiles u on u.id = f.mecanico_id
+  where f.taller_id = t
+    and (p_mecanico is null or f.mecanico_id = p_mecanico)
+    and (p_desde is null or f.momento >= p_desde)
+    and (p_hasta is null or f.momento < p_hasta)
+  order by f.momento desc
+  limit 5000;
 end $$;
 
 -- ─────────────── Incidencias y avisos a la oficina ───────────────

@@ -33,6 +33,22 @@ header#top::after{content:"";display:block;height:6px;background:repeating-linea
 .mini img{width:62px;height:62px;object-fit:cover;border-radius:4px;border:1px solid var(--linea);background:#EDF1F4;cursor:zoom-in}
 .mini .quitar{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;border:0;
   background:var(--rojo);color:#fff;font:700 14px/1 Barlow,system-ui,sans-serif;cursor:pointer}
+.ficha{margin-bottom:16px;border-left:5px solid var(--amar)}
+.rejilla{margin-top:12px;overflow-x:auto}
+.rej-cab,.rej-fila{display:grid;grid-template-columns:120px minmax(520px,1fr);gap:10px;align-items:center}
+.rej-fila{margin-top:8px}
+.horas{display:flex;justify-content:space-between;font-size:.78rem;color:var(--suave)}
+.rej-nombre{font-weight:600;font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pista{position:relative;height:54px;background:#F1F4F7;border:1px solid var(--linea);border-radius:5px;
+  touch-action:none;cursor:crosshair;overflow:hidden}
+.pista>i{position:absolute;top:0;bottom:0;width:1px;background:var(--linea)}
+.turno{position:absolute;top:4px;bottom:4px;background:var(--tinta);color:#fff;border-radius:4px;padding:4px 7px;
+  font-size:.8rem;line-height:1.25;overflow:hidden;cursor:pointer;border-left:4px solid var(--amar)}
+.turno span{display:block;color:#C9D2DB;font-size:.75rem;overflow:hidden;text-overflow:ellipsis}
+.turno.fantasma{background:var(--azul);opacity:.75;pointer-events:none}
+.chip{padding:6px 10px;min-height:36px}
+.chip .suave{margin-left:6px}
+.turno-fila+.turno-fila{margin-top:10px;padding-top:10px;border-top:1px solid var(--linea)}
 .foto-btn{padding:5px 12px;min-height:34px;font-size:.88rem;display:inline-flex;align-items:center;margin:0}
 .informe h1{font-size:1.9rem;margin:14px 0 2px}
 .informe h2{font-size:1.25rem;margin:22px 0 6px;padding-bottom:4px;border-bottom:2px solid var(--tinta)}
@@ -292,6 +308,20 @@ const SEL_ORDEN = '*, coche:coches(*), checklists(*), tareas(*, tarea_mecanicos(
 const SEG_CHECKLISTS = 12 * 60;   // los dos checklists cuentan 12 min en los informes
 
 const DB = {
+  async turnos(desde, hasta){
+    const r = await ok(sb.from('turnos').select('*').gte('inicio', desde.toISOString())
+      .lt('inicio', hasta.toISOString()).order('inicio'));
+    return r.map(t => ({...t, inicio: new Date(t.inicio), fin: new Date(t.fin)}));
+  },
+  async plantillasTurno(){
+    return ok(sb.from('turnos_plantilla').select('*').order('hora_inicio'));
+  },
+  async fichajes(){
+    const desde = new Date(); desde.setHours(0, 0, 0, 0);
+    const r = await ok(sb.from('fichajes').select('*').gte('momento', desde.toISOString())
+      .order('momento', {ascending: false}).limit(50));
+    return r.map(f => ({...f, momento: ts(f.momento)}));
+  },
   async avisosDeOrden(ordenId){
     const r = await ok(sb.from('avisos').select('*').eq('orden_id', ordenId).order('creado'));
     return r.map(a => ({...a, creado: ts(a.creado), mecanico: nom(a.mecanico_id)}));
@@ -549,8 +579,8 @@ function dialogo(html, okTxt, onOk, okClase='pri', opts = {}){
 const MENU_ADMIN = [['ordenes','Órdenes',()=>vOrdenes()],['nueva','Nueva orden',()=>vNuevaOrden()],
   ['avisos','Avisos',()=>vAvisos()],['mecanicos','Mecánicos',()=>vMecanicos()],
   ['coches','Coches',()=>vCoches()],['historico','Histórico',()=>vHistorico()],
-  ['taller','Mi taller',()=>vTaller()]];
-const MENU_MEC = [['inicio','Mis coches',()=>mInicio()]];
+  ['turnos','Turnos',()=>vTurnos()], ['taller','Mi taller',()=>vTaller()]];
+const MENU_MEC = [['inicio','Mis coches',()=>mInicio()], ['turnos','Mis turnos',()=>mTurnos()]];
 function cabecera(){
   $('#top').hidden = false;
   $('#logo').innerHTML = `${TALLER?.logo ? `<img class="logo-img" src="${esc(TALLER.logo)}" alt="">` : ''}
@@ -880,7 +910,6 @@ async function vOrden(id){
   $('#o-parar')?.addEventListener('click', () => {
     dialogo(`<h2>Parar el tiempo</h2>
       <p>El coche queda a medias, con su tiempo restante, y la orden sigue abierta. Cualquier mecánico asignado puede retomarlo.</p>
-      <p class="suave">Útil si alguien se fue sin marcar fin de turno.</p>
       <label style="margin-top:10px">Motivo (se guarda en el histórico)<input id="d-nota" placeholder="Se fue sin marcar fin de turno"></label>`,
       'Parar el tiempo', async d => {
         await rpc('parar_tiempo', {p_orden: id, p_nota: d.querySelector('#d-nota').value});
@@ -920,7 +949,6 @@ async function vOrden(id){
       <fieldset><legend>Mecánicos (comparten el tiempo)</legend>
         ${mecs.filter(m => m.activo || t?.mecanicos.some(x => x.id === m.id)).map(m => `<label class="chk"><input type="checkbox" value="${m.id}" ${t?.mecanicos.some(x => x.id === m.id) ? 'checked' : ''}> ${esc(m.nombre)}</label>`).join('') || 'Crea antes un mecánico.'}
       </fieldset>
-      <p class="suave">Los minutos de todas las reparaciones se suman en un único tiempo para el coche.</p>
     </div>`, 'Guardar', async d => {
       const body = {titulo: d.querySelector('#d-tit').value, descripcion: d.querySelector('#d-desc').value,
         minutos: +d.querySelector('#d-min').value, mecanicos: [...d.querySelectorAll('fieldset input:checked')].map(x => x.value)};
@@ -1001,7 +1029,6 @@ async function vNuevaOrden(){
     <section class="panel">
       <h2>Trabajo</h2>
       <label>Tipo de revisión<input id="n-tipo" list="tipos"></label>
-      <p class="suave">El mecánico hará el checklist de entrada (${(PLANT.inicial || PLANT.completo).length} puntos) antes de empezar y el control final antes de entregar.</p>
       <datalist id="tipos"><option>Mantenimiento</option><option>Revisión oficial</option><option>Pre-ITV</option><option>Reparación</option><option>Diagnóstico</option><option>Neumáticos</option></datalist>
       <label>Notas para el mecánico<textarea id="n-notas" rows="2"></textarea></label>
       <h3 style="margin-top:16px">Reparaciones</h3>
@@ -1070,7 +1097,6 @@ async function vTaller(){
   <div class="dos">
     <section class="panel">
       <h2>Logo</h2>
-      <p class="suave">Sale en la cabecera de la app. Lo mejor es un PNG con fondo transparente.</p>
       <div id="t-prev" class="logo-prev">${logo ? `<img src="${esc(logo)}" alt="Logo del taller">` : '<span class="suave">Sin logo</span>'}</div>
       <div class="fila" style="margin-top:10px">
         <label class="btn sec">Elegir imagen<input type="file" accept="image/*" id="t-file" hidden></label>
@@ -1079,7 +1105,6 @@ async function vTaller(){
     </section>
     <section class="panel">
       <h2>Datos</h2>
-      <p class="suave">Son los datos del taller, para la cabecera y los documentos.</p>
       <div class="pila" style="margin-top:10px">
         <label>Nombre<input id="t-nombre" value="${esc(TALLER.nombre || '')}"></label>
         <label>Dirección<input id="t-dir" value="${esc(TALLER.direccion || '')}"></label>
@@ -1170,6 +1195,183 @@ async function vCoches(){
   on('[data-c]', 'click', e => dlg(coches.find(c => c.id === +e.currentTarget.dataset.c)));
 }
 
+/* ═════════ turnos ═════════ */
+const H0 = 6, H1 = 22, MIN_DIA = (H1 - H0) * 60;
+const hhmm = d => d.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
+const diaLargo = d => d.toLocaleDateString('es-ES', {weekday: 'long', day: 'numeric', month: 'long'});
+const aISO = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+const minsDe = d => d.getHours() * 60 + d.getMinutes();
+const pct = m => Math.max(0, Math.min(100, (m - H0 * 60) / MIN_DIA * 100));
+function duracion(a, b){ return fmtMin((b - a) / 1000); }
+
+async function vTurnos(){
+  marcar('turnos'); st.refresh = null;
+  const dia = st.diaTurnos ? new Date(st.diaTurnos) : new Date();
+  dia.setHours(0, 0, 0, 0);
+  st.diaTurnos = dia.getTime();
+  const finDia = new Date(dia.getTime() + 86400000);
+  const [mecs, turnos, plantillas] = await Promise.all([DB.mecanicos(), DB.turnos(dia, finDia), DB.plantillasTurno()]);
+  const activos = mecs.filter(m => m.activo);
+  const horas = [];
+  for (let h = H0; h <= H1; h++) horas.push(h);
+  const bloque = t => {
+    const i = pct(minsDe(t.inicio)), f = pct(t.fin.getDate() !== t.inicio.getDate() ? H1 * 60 : minsDe(t.fin));
+    return `<div class="turno" data-turno="${t.id}" style="left:${i}%;width:${Math.max(f - i, 3)}%">
+      <strong>${hhmm(t.inicio)} - ${hhmm(t.fin)}</strong>
+      ${t.comentario ? `<span>${esc(t.comentario)}</span>` : ''}</div>`;
+  };
+  app(`<div class="fila cab"><h1>Turnos</h1>
+      <div class="fila">
+        <button class="btn sec" data-dia="-1">← Día anterior</button>
+        <input type="date" id="t-dia" value="${aISO(dia)}" style="width:auto">
+        <button class="btn sec" data-dia="1">Día siguiente →</button>
+      </div></div>
+    <p><strong>${diaLargo(dia)}</strong></p>
+    <div class="panel">
+      <div class="fila entre">
+        <div class="fila" id="plantillas">
+          ${plantillas.map(p => `<button class="btn sec chip" data-plantilla="${p.id}">${esc(p.nombre)}
+            <span class="suave">${p.hora_inicio.slice(0,5)}-${p.hora_fin.slice(0,5)}</span></button>`).join('')
+            || '<span class="suave">Sin turnos predefinidos</span>'}
+        </div>
+        <button class="btn sec" id="t-plantillas">Turnos predefinidos</button>
+      </div>
+      <p class="suave" id="t-pista" style="margin-top:8px">Arrastra sobre la línea de un mecánico para crear un turno. Con un turno predefinido elegido, basta con tocar su fila.</p>
+      <div class="rejilla">
+        <div class="rej-cab"><div></div><div class="horas">${horas.map(h => `<span>${h}</span>`).join('')}</div></div>
+        ${activos.map(m => `<div class="rej-fila">
+          <div class="rej-nombre">${esc(m.nombre)}</div>
+          <div class="pista" data-mec="${m.id}">
+            ${horas.slice(0, -1).map((h, i) => `<i style="left:${i / (horas.length - 1) * 100}%"></i>`).join('')}
+            ${turnos.filter(t => t.mecanico_id === m.id).map(bloque).join('')}
+          </div></div>`).join('') || '<p>Crea antes algún mecánico.</p>'}
+      </div>
+    </div>`);
+  $('#t-dia').onchange = e => { st.diaTurnos = new Date(e.target.value + 'T00:00').getTime(); vTurnos(); };
+  on('[data-dia]', 'click', e => {
+    st.diaTurnos = dia.getTime() + Number(e.currentTarget.dataset.dia) * 86400000; vTurnos();
+  });
+  let elegida = null;
+  on('[data-plantilla]', 'click', e => {
+    const b = e.currentTarget;
+    const ya = b.classList.contains('pri');
+    document.querySelectorAll('[data-plantilla]').forEach(x => x.classList.replace('pri', 'sec'));
+    elegida = ya ? null : plantillas.find(p => p.id === +b.dataset.plantilla);
+    if (!ya) b.classList.replace('sec', 'pri');
+    $('#t-pista').textContent = elegida
+      ? `Toca la fila de un mecánico para ponerle el turno de ${elegida.nombre}.`
+      : 'Arrastra sobre la línea de un mecánico para crear un turno.';
+  });
+
+  const conHora = (base, min) => new Date(base.getTime() + min * 60000);
+  const redondea = m => Math.round(m / 15) * 15;
+  const minDesdeX = (pista, x) => {
+    const r = pista.getBoundingClientRect();
+    return redondea(H0 * 60 + Math.max(0, Math.min(1, (x - r.left) / r.width)) * MIN_DIA);
+  };
+  const crear = async (mecId, min1, min2) => {
+    try {
+      await rpc('guardar_turno', {p_id: null, p_mecanico: mecId,
+        p_inicio: conHora(dia, min1).toISOString(), p_fin: conHora(dia, min2).toISOString(), p_comentario: null});
+      toast('Turno creado'); vTurnos();
+    } catch(x){ toast(x.message, true); }
+  };
+  document.querySelectorAll('.pista').forEach(pista => {
+    let ini = null, fantasma = null;
+    pista.addEventListener('pointerdown', e => {
+      if (e.target.closest('.turno')) return;
+      if (elegida){
+        const [h1, m1] = elegida.hora_inicio.split(':').map(Number);
+        const [h2, m2] = elegida.hora_fin.split(':').map(Number);
+        return crear(pista.dataset.mec, h1 * 60 + m1, h2 * 60 + m2);
+      }
+      ini = minDesdeX(pista, e.clientX);
+      pista.setPointerCapture(e.pointerId);
+      fantasma = document.createElement('div');
+      fantasma.className = 'turno fantasma';
+      pista.appendChild(fantasma);
+    });
+    pista.addEventListener('pointermove', e => {
+      if (ini === null) return;
+      const ahora = minDesdeX(pista, e.clientX);
+      const a = Math.min(ini, ahora), b = Math.max(ini, ahora);
+      fantasma.style.left = pct(a) + '%';
+      fantasma.style.width = (pct(b) - pct(a)) + '%';
+      fantasma.innerHTML = `<strong>${String(Math.floor(a/60)).padStart(2,'0')}:${String(a%60).padStart(2,'0')} - ${String(Math.floor(b/60)).padStart(2,'0')}:${String(b%60).padStart(2,'0')}</strong>`;
+    });
+    pista.addEventListener('pointerup', e => {
+      if (ini === null) return;
+      const fin = minDesdeX(pista, e.clientX);
+      const a = Math.min(ini, fin), b = Math.max(ini, fin);
+      ini = null; fantasma?.remove(); fantasma = null;
+      if (b - a >= 30) crear(pista.dataset.mec, a, b);
+    });
+    pista.addEventListener('pointercancel', () => { ini = null; fantasma?.remove(); fantasma = null; });
+  });
+
+  on('[data-turno]', 'click', e => {
+    const t = turnos.find(x => x.id === +e.currentTarget.dataset.turno);
+    dialogo(`<h2>Turno de ${esc(nom(t.mecanico_id))}</h2>
+      <div class="pila">
+        <label>Mecánico<select id="d-mec">${activos.map(m => `<option value="${m.id}" ${m.id === t.mecanico_id ? 'selected' : ''}>${esc(m.nombre)}</option>`).join('')}</select></label>
+        <div class="grid" style="margin:0">
+          <label>Empieza<input type="time" id="d-ini" value="${hhmm(t.inicio)}"></label>
+          <label>Acaba<input type="time" id="d-fin" value="${hhmm(t.fin)}"></label>
+        </div>
+        <label>Comentario para el mecánico<textarea id="d-com" rows="3">${esc(t.comentario || '')}</textarea></label>
+      </div>`, 'Guardar', async d => {
+        const h = (sel) => { const [hh, mm] = d.querySelector(sel).value.split(':').map(Number); return conHora(dia, hh * 60 + mm).toISOString(); };
+        await rpc('guardar_turno', {p_id: t.id, p_mecanico: d.querySelector('#d-mec').value,
+          p_inicio: h('#d-ini'), p_fin: h('#d-fin'), p_comentario: d.querySelector('#d-com').value});
+        toast('Turno guardado'); vTurnos();
+      }, 'pri', {extra: {txt: 'Eliminar', clase: 'peligro', fn: () => {
+        dialogo('<h2>Eliminar turno</h2><p>Se quitará del cuadrante.</p>', 'Eliminar', async () => {
+          await rpc('borrar_turno', {p_id: t.id}); toast('Turno eliminado'); vTurnos();
+        }, 'peligro');
+      }}});
+  });
+
+  $('#t-plantillas').onclick = () => dlgPlantillas(plantillas);
+  function dlgPlantillas(lista){
+    dialogo(`<h2>Turnos predefinidos</h2>
+      <div class="pila">
+        ${lista.map(p => `<div class="fila entre"><span>${esc(p.nombre)}, ${p.hora_inicio.slice(0,5)} a ${p.hora_fin.slice(0,5)}</span>
+          <button class="btn peligro" data-borrar-p="${p.id}">Quitar</button></div>`).join('') || '<p>Todavía no hay ninguno.</p>'}
+        <hr>
+        <label>Nombre<input id="p-nom" placeholder="Mañana"></label>
+        <div class="grid" style="margin:0">
+          <label>Empieza<input type="time" id="p-ini" value="08:00"></label>
+          <label>Acaba<input type="time" id="p-fin" value="14:00"></label>
+        </div>
+      </div>`, 'Añadir', async d => {
+        await rpc('guardar_plantilla_turno', {p_id: null, p_nombre: d.querySelector('#p-nom').value,
+          p_inicio: d.querySelector('#p-ini').value, p_fin: d.querySelector('#p-fin').value});
+        toast('Turno predefinido creado'); vTurnos();
+      }, 'pri', {cancel: 'Cerrar'});
+    $('#dlg').querySelectorAll('[data-borrar-p]').forEach(b => b.onclick = async () => {
+      try { await rpc('borrar_plantilla_turno', {p_id: +b.dataset.borrarP}); $('#dlg').close(); toast('Quitado'); vTurnos(); }
+      catch(x){ toast(x.message, true); }
+    });
+  }
+}
+
+async function mTurnos(){
+  marcar('turnos'); st.refresh = null;
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const turnos = await DB.turnos(hoy, new Date(hoy.getTime() + 30 * 86400000));
+  const dias = {};
+  turnos.forEach(t => { (dias[aISO(t.inicio)] ??= []).push(t); });
+  app(`<h1>Mis turnos</h1>
+    ${Object.keys(dias).length ? `<div class="pila">${Object.entries(dias).map(([d, ts]) => `<div class="panel">
+      <h2 style="margin:0 0 6px">${diaLargo(new Date(d + 'T00:00'))}</h2>
+      ${ts.map(t => `<div class="turno-fila">
+        <div><strong>${hhmm(t.inicio)} - ${hhmm(t.fin)}</strong> <span class="suave">${duracion(t.inicio, t.fin)}</span></div>
+        ${t.comentario ? `<div class="nota-relevo">${esc(t.comentario)}</div>` : ''}
+      </div>`).join('')}
+    </div>`).join('')}</div>`
+    : '<div class="panel vacio"><p>No tienes turnos asignados.</p></div>'}`);
+}
+
 /* ═════════ ADMIN: informe del coche ═════════ */
 function filaCk(tipo, ck, cliente){
   if (!ck) return '<p class="suave">No se hizo.</p>';
@@ -1198,9 +1400,6 @@ async function vInforme(id, cliente = false){
         <button class="btn ok" id="imprimir">Imprimir o guardar en PDF</button>
       </div>
     </div>
-    <p class="suave no-print">${cliente
-      ? 'Versión para entregar: sin nombres de mecánicos, sin tiempos y sin incidencias internas.'
-      : 'Versión interna: con tiempos, mecánicos e incidencias.'}</p>
     <div class="panel informe">
       <header class="inf-cab">
         <div>${TALLER?.logo ? `<img class="inf-logo" src="${esc(TALLER.logo)}" alt="">` : `<h2>${esc(TALLER?.nombre || '')}</h2>`}</div>
@@ -1346,7 +1545,8 @@ async function vHistorico(){
       </div>
       <div class="fila"><button class="btn pri" id="h-buscar">Buscar</button>
         <button class="btn sec" id="h-csv">CSV de turnos</button>
-        <button class="btn sec" id="h-csv2">CSV de reparaciones</button></div>
+        <button class="btn sec" id="h-csv2">CSV de reparaciones</button>
+        <button class="btn sec" id="h-csv3">CSV de fichajes</button></div>
     </div>
     <div id="h-res" class="pila" style="margin-top:16px"></div>`);
   const filtros = () => ({
@@ -1357,8 +1557,13 @@ async function vHistorico(){
   });
   const leerTurnos = async () => (await rpc('historico', filtros())).map(r => ({...r, inicio: ts(r.inicio), fin: ts(r.fin)}));
   const leerReps = async () => (await rpc('historico_reparaciones', filtros())).map(r => ({...r, finalizada: ts(r.finalizada)}));
+  const leerFichajes = async () => {
+    const f = filtros();
+    return (await rpc('historico_fichajes', {p_mecanico: f.p_mecanico, p_desde: f.p_desde, p_hasta: f.p_hasta}))
+      .map(r => ({...r, momento: ts(r.momento)}));
+  };
   const buscar = async () => {
-    const [turnos, reps] = await Promise.all([leerTurnos(), leerReps()]);
+    const [turnos, reps, fichajes] = await Promise.all([leerTurnos(), leerReps(), leerFichajes().catch(() => [])]);
     const ahora = srvAhora();
     const res = {};
     turnos.forEach(r => {
@@ -1366,7 +1571,7 @@ async function vHistorico(){
       x.seg += (r.fin || ahora) - r.inicio; x.turnos++; x.coches.add(r.matricula);
     });
     reps.forEach(r => { const x = Object.values(res).find(v => v.nombre === r.mecanico); if (x) x.reps++; });
-    $('#h-res').innerHTML = (turnos.length || reps.length) ? `
+    $('#h-res').innerHTML = (turnos.length || reps.length || fichajes.length) ? `
       ${turnos.length ? `<div class="panel tabla"><h2>Resumen por mecánico</h2><table>
         <thead><tr><th>Mecánico</th><th>Tiempo trabajado</th><th>Turnos</th><th>Coches</th><th>Reparaciones hechas</th></tr></thead>
         <tbody>${Object.values(res).map(x => `<tr><td>${esc(x.nombre)}</td><td>${fmtMin(x.seg)}</td><td>${x.turnos}</td><td>${x.coches.size}</td><td>${x.reps}</td></tr>`).join('')}</tbody></table></div>` : ''}
@@ -1376,6 +1581,9 @@ async function vHistorico(){
           <td>${esc(r.matricula)}<div class="suave">${esc(r.marca)} ${esc(r.modelo)}</div><div class="suave">Orden ${r.orden_id}, ${esc(r.tipo_revision)}</div></td>
           <td>${esc(r.mecanico)}</td><td>${fmtMin((r.fin || ahora) - r.inicio)}</td><td>${fmtMin(r.seg_asignados)}</td><td>${r.reparaciones}</td>
           <td>${MOT[r.motivo] || 'En curso'}${r.relevo ? `<div class="suave">Relevo: ${esc(r.relevo)}</div>` : ''}${r.nota ? `<div class="suave">${esc(r.nota)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${fichajes.length ? `<div class="panel tabla"><h2>Fichajes</h2><table>
+        <thead><tr><th>Fecha y hora</th><th>Mecánico</th><th>Fichaje</th></tr></thead>
+        <tbody>${fichajes.map(f => `<tr><td>${fmtFecha(f.momento)}</td><td>${esc(f.mecanico)}</td><td>${FICHAJES[f.tipo] || esc(f.tipo)}</td></tr>`).join('')}</tbody></table></div>` : ''}
       ${reps.length ? `<div class="panel tabla"><h2>Reparaciones hechas</h2><table>
         <thead><tr><th>Fecha</th><th>Reparación</th><th>Coche</th><th>Mecánico</th><th>Min. asignados</th><th>Min. reales</th></tr></thead>
         <tbody>${reps.map(r => `<tr><td>${fmtFecha(r.finalizada)}</td><td>${esc(r.reparacion)}</td>
@@ -1392,6 +1600,11 @@ async function vHistorico(){
       rows.map(r => [r.orden_id, r.matricula, r.marca, r.modelo, r.tipo_revision, r.mecanico, f(r.inicio), f(r.fin),
         n(((r.fin || ahora) - r.inicio) / 60), n(r.seg_asignados / 60), r.reparaciones, MOT[r.motivo] || 'En curso', r.relevo, r.nota]));
   });
+  $('#h-csv3').onclick = accion(async () => {
+    const rows = await leerFichajes();
+    descargarCSV('fichajes', ['Fecha y hora', 'Mecánico', 'Fichaje'],
+      rows.map(r => [f(r.momento), r.mecanico, FICHAJES[r.tipo] || r.tipo]));
+  });
   $('#h-csv2').onclick = accion(async () => {
     const rows = await leerReps();
     descargarCSV('reparaciones', ['Fecha','Reparación','Orden','Revisión','Matrícula','Marca','Modelo','Mecánico','Min. asignados','Min. reales'],
@@ -1402,13 +1615,43 @@ async function vHistorico(){
 }
 
 /* ═════════ MECÁNICO ═════════ */
+const FICHAJES = {entrada:'Entrada a trabajar', descanso:'Salida para descanso', vuelta:'Vuelta del descanso', fin:'Fin de turno'};
+const SIGUIENTES = {fin:['entrada'], entrada:['descanso','fin'], vuelta:['descanso','fin'], descanso:['vuelta','fin']};
+function panelFichaje(fichajes){
+  const ultimo = fichajes[0]?.tipo || 'fin';
+  const estado = {entrada:'Trabajando', vuelta:'Trabajando', descanso:'En el descanso', fin:'Fuera de turno'}[ultimo];
+  const hoy = fichajes.slice().reverse();
+  return `<div class="panel ficha">
+    <div class="fila entre">
+      <div><h2 style="margin:0">Jornada</h2><div class="suave">${estado}${fichajes[0] ? `, desde las ${new Date(fichajes[0].momento * 1000).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}` : ''}</div></div>
+      <div class="fila">${SIGUIENTES[ultimo].map(t =>
+        `<button class="btn ${t === 'entrada' ? 'ok' : t === 'fin' ? 'sec' : 'pri'}" data-fichar="${t}">${FICHAJES[t]}</button>`).join('')}</div>
+    </div>
+    ${hoy.length ? `<div class="suave" style="margin-top:10px">Hoy: ${hoy.map(f =>
+      `${FICHAJES[f.tipo]} ${new Date(f.momento * 1000).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}`).join(' · ')}</div>` : ''}
+  </div>`;
+}
+
 async function mInicio(){
   marcar('inicio');
-  const os = await DB.ordenes('abierta');
+  const [os, fichajes] = await Promise.all([DB.ordenes('abierta'), DB.fichajes().catch(() => [])]);
   app(`<h1>Mis coches</h1>
+    ${panelFichaje(fichajes)}
     ${os.length ? `<div class="lista">${os.map(o => tarjetaOrden(o, 'mio')).join('')}</div>`
       : '<div class="panel vacio"><p>No tienes coches asignados ahora mismo.</p><p class="suave">Cuando la oficina te asigne trabajo aparecerá aquí.</p></div>'}`);
   on('[data-mio]', 'click', e => mOrden(+e.currentTarget.dataset.mio));
+  on('[data-fichar]', 'click', accion(async (e, b) => {
+    const t = b.dataset.fichar;
+    const aviso = t === 'descanso' ? 'Se parará el tiempo del coche que lleves.'
+      : t === 'fin' ? 'Se parará el tiempo del coche que lleves y quedará a medias.' : '';
+    if (aviso){
+      dialogo(`<h2>${FICHAJES[t]}</h2><p>${aviso}</p>`, 'Fichar', async () => {
+        await rpc('fichar', {p_tipo: t}); toast(FICHAJES[t] + ' fichada'); mInicio();
+      });
+    } else {
+      await rpc('fichar', {p_tipo: t}); toast(FICHAJES[t] + ' fichada'); mInicio();
+    }
+  }));
   st.refresh = mInicio;
 }
 
