@@ -39,8 +39,8 @@ header#top::after{content:"";display:block;height:6px;background:repeating-linea
 .inf-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;
   border-bottom:4px solid var(--amar);padding-bottom:10px}
 .inf-logo{max-height:70px;max-width:220px;object-fit:contain}
-.inf-coche{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:12px 0}
-.inf-coche .escena{width:250px;flex:0 0 auto}
+.inf-coche{display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  margin:14px 0;padding:12px 14px;background:#F4F6F8;border:1px solid var(--linea);border-radius:6px}
 .firmas{display:flex;gap:24px;margin-top:34px;flex-wrap:wrap}
 .firmas div{flex:1 1 180px;font-size:.9rem;color:var(--suave)}
 .firmas span{display:block;border-bottom:1px solid var(--tinta);height:42px}
@@ -173,7 +173,24 @@ dialog::backdrop{background:rgba(27,39,51,.55)}
 /* ═════════ utilidades ═════════ */
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const app = html => { $('#app').innerHTML = html; window.scrollTo({top:0}); pintarFotos($('#app')); };
+// Para comparar dos pintados: quitamos lo que cambia cada segundo (la cuenta atrás)
+const normalizar = h => h.replace(/data-(t|rest)="[^"]*"/g, '')
+                         .replace(/(class="cd[^"]*"[^>]*>)[^<]*/g, '$1');
+const app = html => {
+  const firma = normalizar(html);
+  if (st.silencioso){
+    // refresco automático: si no ha cambiado nada, no se toca la pantalla y así no parpadea
+    if (firma === st.firma) return;
+    const y = window.scrollY;
+    $('#app').innerHTML = html;
+    window.scrollTo({top: y});
+  } else {
+    $('#app').innerHTML = html;
+    window.scrollTo({top: 0});
+  }
+  st.firma = firma;
+  pintarFotos($('#app'));
+};
 const on = (sel, ev, fn) => document.querySelectorAll('#app ' + sel).forEach(el => el.addEventListener(ev, fn));
 const fmtFecha = ts => ts ? new Date(ts * 1000).toLocaleString('es-ES', {dateStyle:'short', timeStyle:'short'}) : '';
 const fmtMin = s => { const m = Math.round(s / 60); return m >= 60 ? `${Math.floor(m/60)} h ${m%60 ? m%60 + ' min' : ''}`.trim() : `${m} min`; };
@@ -309,7 +326,7 @@ const DB = {
   async crearMecanico(b){
     if (!/^[a-z0-9._-]{3,40}$/.test((b.usuario || '').trim().toLowerCase())) throw new Error('El usuario debe tener 3-40 caracteres: letras, números, punto o guion');
     if (!b.password || b.password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres');
-    // cliente aparte para no cerrar la sesión del administrador
+    // cliente aparte para no cerrar la sesión de quien lo crea
     const aux = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY,
       {auth: {persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'taller-aux'}});
     const d = await ok(aux.auth.signUp({email: aEmail(b.usuario), password: b.password}));
@@ -537,7 +554,7 @@ const MENU_MEC = [['inicio','Mis coches',()=>mInicio()]];
 function cabecera(){
   $('#top').hidden = false;
   $('#logo').innerHTML = `${TALLER?.logo ? `<img class="logo-img" src="${esc(TALLER.logo)}" alt="">` : ''}
-    <span>${esc(yo.taller)}<small>${esc(yo.nombre)}, ${yo.rol === 'admin' ? 'administrador' : 'mecánico'}</small></span>`;
+    <span>${esc(yo.taller)}<small>${esc(yo.nombre)}, ${yo.rol === 'admin' ? 'oficina' : 'mecánico'}</small></span>`;
   const menu = yo.rol === 'admin' ? MENU_ADMIN : MENU_MEC;
   $('#nav').innerHTML = menu.map(([k,t]) => `<button data-k="${k}">${t}${k === 'avisos' ? '<i class="pin" hidden></i>' : ''}</button>`).join('') + `<button data-k="salir">Salir</button>`;
   $('#nav').querySelectorAll('button').forEach(b => b.onclick = () => {
@@ -575,7 +592,7 @@ function vLogin(registro=false){
   st.refresh = null;
   app(`<div class="login panel">
     <h1>Taller</h1>
-    <p class="suave">${registro ? 'Crea tu taller. Tú serás el administrador.' : 'Entra con tu usuario.'}</p>
+    <p class="suave">${registro ? 'Crea tu taller. Tú serás el personal de oficina.' : 'Entra con tu usuario.'}</p>
     <form id="f" class="pila" style="margin-top:14px">
       ${registro ? `<label>Nombre del taller<input name="taller" required></label>
                     <label>Tu nombre<input name="nombre" required></label>` : ''}
@@ -652,10 +669,10 @@ function leerChecklist(root){
 function panelChecklist(o, tipo, modo, id){
   const ck = tipo === 'final' ? o.checklist_final : o.checklist;
   const plantilla = tipo === 'final' ? 'final' : o.tipo_checklist;
-  const titulo = tipo === 'final' ? 'Control final' : `Checklist ${o.tipo_checklist === 'basico' ? 'básico' : 'completo'}`;
+  const titulo = tipo === 'final' ? 'Control final' : 'Checklist de entrada';
   const todas = o.n_tareas > 0 && o.n_finalizadas === o.n_tareas;
   let cuerpo;
-  if (ck) cuerpo = verChecklist(plantilla, ck) + (modo === 'mec' ? '<p class="suave" style="margin-top:8px">Solo el administrador puede modificarlo.</p>' : '');
+  if (ck) cuerpo = verChecklist(plantilla, ck) + (modo === 'mec' ? '<p class="suave" style="margin-top:8px">Solo el personal de oficina puede modificarlo.</p>' : '');
   else if (modo === 'admin') cuerpo = `<p>Pendiente. Lo hará el mecánico${tipo === 'final' ? ' al terminar las reparaciones' : ' antes de empezar'}.</p>
     <button class="btn sec" data-ck-hacer="${tipo}">Hacerlo yo</button>`;
   else if (tipo === 'final' && !todas) cuerpo = '<p>Se hace cuando estén todas las reparaciones marcadas.</p>';
@@ -753,7 +770,7 @@ function accionesMecanico(o, recargar){
     const tid = +e.currentTarget.dataset.incidencia;
     const t = o.tareas.find(x => x.id === tid);
     dialogo(`<h2>Incidencia en «${esc(t.titulo)}»</h2>
-      <p>Se <strong>parará el tiempo</strong> del coche y le llegará un aviso al administrador. Podrás continuar cuando se resuelva.</p>
+      <p>Se <strong>parará el tiempo</strong> del coche y le llegará un aviso a la oficina. Podrás continuar cuando se resuelva.</p>
       <label style="margin-top:10px">¿Qué ha pasado?<textarea id="d-nota" rows="4" placeholder="Falta una pieza, el tornillo está pasado de rosca..."></textarea></label>
       <div class="fotos"><label class="btn sec foto-btn">Añadir foto<input type="file" accept="image/*" capture="environment" hidden data-subir></label></div>`,
       'Enviar y parar el tiempo', async d => {
@@ -763,7 +780,7 @@ function accionesMecanico(o, recargar){
   });
   on('[data-nota]', 'click', () => {
     dialogo(`<h2>Nota al taller</h2>
-      <p>Le llegará un aviso al administrador. El tiempo sigue corriendo.</p>
+      <p>Le llegará un aviso a la oficina. El tiempo sigue corriendo.</p>
       <label style="margin-top:10px">Nota<textarea id="d-nota" rows="4"></textarea></label>
       <div class="fotos"><label class="btn sec foto-btn">Añadir foto<input type="file" accept="image/*" capture="environment" hidden data-subir></label></div>`,
       'Enviar', async d => {
@@ -785,7 +802,13 @@ setInterval(() => {
     el.textContent = fmtCD(r); el.classList.toggle('neg', r < 0);
   });
 }, 1000);
-setInterval(() => { if (st.refresh && !st.editing && !document.hidden) st.refresh().catch(() => {}); }, 15000);
+setInterval(async () => {
+  // no refrescamos si hay un diálogo abierto, si se está escribiendo o si la pestaña no se ve
+  const escribiendo = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+  if (!st.refresh || st.editing || escribiendo || document.hidden) return;
+  st.silencioso = true;
+  try { await st.refresh(); } catch(e){} finally { st.silencioso = false; }
+}, 20000);
 
 /* ═════════ ADMIN: órdenes ═════════ */
 function tarjetaOrden(o, destino){
@@ -801,7 +824,7 @@ function tarjetaOrden(o, destino){
     <div class="escena">${cocheSVG(o.coche, run)}</div>
     <div class="fila entre" style="margin-top:8px">${placa(o.coche.matricula)}${badge(o.estado)}</div>
     <h3 style="margin:8px 0 0">${esc(o.coche.marca)} ${esc(o.coche.modelo)}</h3>
-    <div class="suave">${esc(o.tipo_revision)}, checklist ${o.tipo_checklist === 'basico' ? 'básico' : 'completo'}</div>
+    <div class="suave">${esc(o.tipo_revision)}</div>
     ${resumen}
   </button>`;
 }
@@ -977,10 +1000,8 @@ async function vNuevaOrden(){
     </section>
     <section class="panel">
       <h2>Trabajo</h2>
-      <div class="grid" style="margin-top:0">
-        <label>Tipo de revisión<input id="n-tipo" list="tipos"></label>
-        <label>Checklist<select id="n-ck"><option value="basico">Básico (${PLANT.basico.length} puntos)</option><option value="completo">Completo (${PLANT.completo.length} puntos)</option></select></label>
-      </div>
+      <label>Tipo de revisión<input id="n-tipo" list="tipos"></label>
+      <p class="suave">El mecánico hará el checklist de entrada (${(PLANT.inicial || PLANT.completo).length} puntos) antes de empezar y el control final antes de entregar.</p>
       <datalist id="tipos"><option>Mantenimiento</option><option>Revisión oficial</option><option>Pre-ITV</option><option>Reparación</option><option>Diagnóstico</option><option>Neumáticos</option></datalist>
       <label>Notas para el mecánico<textarea id="n-notas" rows="2"></textarea></label>
       <h3 style="margin-top:16px">Reparaciones</h3>
@@ -1004,7 +1025,7 @@ async function vNuevaOrden(){
   zona.addEventListener('click', e => { if (e.target.classList.contains('t-quitar')){ e.target.closest('.t-fila').remove(); total(); } });
   $('#n-add').onclick = () => zona.insertAdjacentHTML('beforeend', filaTarea());
   $('#n-guardar').onclick = accion(async () => {
-    const body = {tipo_revision: $('#n-tipo').value.trim(), tipo_checklist: $('#n-ck').value, notas: $('#n-notas').value, tareas: []};
+    const body = {tipo_revision: $('#n-tipo').value.trim(), tipo_checklist: 'completo', notas: $('#n-notas').value, tareas: []};
     if (!body.tipo_revision) throw new Error('Indica el tipo de revisión');
     const sel = +$('#n-sel').value;
     sel ? body.coche_id = sel : body.coche = leerCoche(campos);
@@ -1150,11 +1171,11 @@ async function vCoches(){
 }
 
 /* ═════════ ADMIN: informe del coche ═════════ */
-function filaCk(tipo, ck){
+function filaCk(tipo, ck, cliente){
   if (!ck) return '<p class="suave">No se hizo.</p>';
   const it = ck.datos.items;
-  return `<p class="suave">Realizado el ${fmtFecha(ck.creado)} por ${esc(ck.realizado_por)}${
-    ck.modificado ? `. Modificado el ${fmtFecha(ck.modificado)} por ${esc(ck.modificado_por)}` : ''}</p>
+  return `<p class="suave">Realizado el ${fmtFecha(ck.creado)}${cliente ? '' : ` por ${esc(ck.realizado_por)}${
+    ck.modificado ? `. Modificado el ${fmtFecha(ck.modificado)} por ${esc(ck.modificado_por)}` : ''}`}</p>
     <table><tbody>${PLANT[tipo].map(p => {
       const v = it[p.id] || {};
       return `<tr><td>${esc(p.texto)}</td><td><strong>${CK_ETQ[v.estado] || ''}</strong></td>
@@ -1164,15 +1185,22 @@ function filaCk(tipo, ck){
     ${ck.datos.km ? `<p>Kilómetros: ${Number(ck.datos.km).toLocaleString('es-ES')}</p>` : ''}
     ${ck.datos.observaciones ? `<p>Observaciones: ${esc(ck.datos.observaciones)}</p>` : ''}`;
 }
-async function vInforme(id){
+async function vInforme(id, cliente = false){
   marcar('ordenes'); st.refresh = null;
   const [o, avisos] = await Promise.all([DB.orden(id), DB.avisosDeOrden(id).catch(() => [])]);
   const tot = o.sesiones.reduce((a, x) => a + ((x.fin || srvAhora()) - x.inicio), 0);
   const mecs = [...new Set(o.sesiones.map(x => x.mecanico))];
   app(`<div class="fila cab no-print">
       <button class="lnk" id="volver">Volver a la orden</button>
-      <button class="btn pri" id="imprimir">Imprimir o guardar en PDF</button>
+      <div class="fila">
+        <button class="btn ${cliente ? 'sec' : 'pri'}" data-modo="interno">Informe interno</button>
+        <button class="btn ${cliente ? 'pri' : 'sec'}" data-modo="cliente">Informe para el cliente</button>
+        <button class="btn ok" id="imprimir">Imprimir o guardar en PDF</button>
+      </div>
     </div>
+    <p class="suave no-print">${cliente
+      ? 'Versión para entregar: sin nombres de mecánicos, sin tiempos y sin incidencias internas.'
+      : 'Versión interna: con tiempos, mecánicos e incidencias.'}</p>
     <div class="panel informe">
       <header class="inf-cab">
         <div>${TALLER?.logo ? `<img class="inf-logo" src="${esc(TALLER.logo)}" alt="">` : `<h2>${esc(TALLER?.nombre || '')}</h2>`}</div>
@@ -1188,38 +1216,38 @@ async function vInforme(id){
       <p class="suave">Orden ${o.id}, ${esc(o.tipo_revision)}. Entrada el ${fmtFecha(o.creado)}${o.cerrado ? `, salida el ${fmtFecha(o.cerrado)}` : ''}.</p>
 
       <div class="inf-coche">
-        <div class="escena">${cocheSVG(o.coche)}</div>
         <div>
-          <h2>${esc(o.coche.marca)} ${esc(o.coche.modelo)}</h2>
-          <p>${placa(o.coche.matricula)}</p>
+          <h2 style="border:0;margin:0">${esc(o.coche.marca)} ${esc(o.coche.modelo)}</h2>
           <p class="suave">${datosCoche(o.coche)}${o.coche.vin ? `<br>Bastidor: ${esc(o.coche.vin)}` : ''}</p>
         </div>
+        ${placa(o.coche.matricula)}
       </div>
 
       <h2>Reparaciones</h2>
-      <table><thead><tr><th>Reparación</th><th>Estado</th><th>Asignado</th><th>Real</th><th>Hecha por</th><th>Fecha</th></tr></thead>
+      <table><thead><tr><th>Reparación</th><th>Estado</th>
+        ${cliente ? '' : '<th>Asignado</th><th>Real</th><th>Hecha por</th>'}<th>Fecha</th></tr></thead>
         <tbody>${o.tareas.map(t => `<tr><td>${esc(t.titulo)}${t.descripcion ? `<div class="suave">${esc(t.descripcion)}</div>` : ''}</td>
-          <td>${t.estado === 'finalizada' ? 'Hecha' : 'Pendiente'}</td><td>${fmtMin(t.seg_asignados)}</td>
-          <td>${t.seg_reales == null ? '—' : fmtMin(t.seg_reales)}</td><td>${esc(t.finalizada_por || '—')}</td>
-          <td>${t.finalizada ? fmtFecha(t.finalizada) : '—'}</td></tr>`).join('') || '<tr><td colspan="6">Sin reparaciones.</td></tr>'}</tbody></table>
-      <p>Tiempo asignado a las reparaciones: <strong>${fmtMin(o.seg_total)}</strong>.
+          <td>${t.estado === 'finalizada' ? 'Hecha' : 'Pendiente'}</td>
+          ${cliente ? '' : `<td>${fmtMin(t.seg_asignados)}</td><td>${t.seg_reales == null ? '—' : fmtMin(t.seg_reales)}</td><td>${esc(t.finalizada_por || '—')}</td>`}
+          <td>${t.finalizada ? fmtFecha(t.finalizada) : '—'}</td></tr>`).join('') || `<tr><td colspan="${cliente ? 3 : 6}">Sin reparaciones.</td></tr>`}</tbody></table>
+      ${cliente ? '' : `<p>Tiempo asignado a las reparaciones: <strong>${fmtMin(o.seg_total)}</strong>.
          Con los dos checklists (12 min): <strong>${fmtMin(o.seg_informe)}</strong>.
          Tiempo real trabajado: <strong>${fmtMin(o.seg_reales)}</strong>.</p>
-      ${mecs.length ? `<p class="suave">Mecánicos: ${mecs.map(esc).join(', ')}. Suma de turnos: ${fmtMin(tot)}.</p>` : ''}
+      ${mecs.length ? `<p class="suave">Mecánicos: ${mecs.map(esc).join(', ')}. Suma de turnos: ${fmtMin(tot)}.</p>` : ''}`}
 
-      <h2>Checklist ${o.tipo_checklist === 'basico' ? 'básico' : 'completo'} de entrada</h2>
-      ${filaCk(o.tipo_checklist, o.checklist)}
+      <h2>Checklist de entrada</h2>
+      ${filaCk(o.tipo_checklist, o.checklist, cliente)}
 
       <h2>Control final</h2>
-      ${filaCk('final', o.checklist_final)}
+      ${filaCk('final', o.checklist_final, cliente)}
 
-      ${avisos.length ? `<h2>Incidencias y notas</h2>
+      ${!cliente && avisos.length ? `<h2>Incidencias y notas</h2>
         <table><tbody>${avisos.filter(a => a.tipo !== 'tarea').map(a => `<tr><td>${fmtFecha(a.creado)}</td>
           <td>${TIPO_AVISO[a.tipo] || ''}</td><td>${esc(a.mecanico)}</td>
           <td>${esc(a.texto)}${(a.fotos || []).length ? `<div class="fotos">${a.fotos.map(f => `<span class="mini"><img data-foto="${esc(f)}" alt=""></span>`).join('')}</div>` : ''}</td></tr>`).join('')}</tbody></table>` : ''}
 
       <div class="firmas">
-        <div>Técnico<span></span></div>
+        ${cliente ? '' : '<div>Técnico<span></span></div>'}
         <div>Control<span></span></div>
         <div>Cliente<span></span></div>
       </div>
@@ -1227,6 +1255,7 @@ async function vInforme(id){
     </div>`);
   $('#volver').onclick = () => vOrden(id);
   $('#imprimir').onclick = () => window.print();
+  on('[data-modo]', 'click', e => vInforme(id, e.currentTarget.dataset.modo === 'cliente'));
 }
 
 /* ═════════ ADMIN: avisos ═════════ */
@@ -1296,7 +1325,7 @@ async function vAvisos(){
 }
 
 /* ═════════ ADMIN: histórico ═════════ */
-const MOT = {finalizada:'Trabajo finalizado', fin_turno:'Fin de turno', cerrada_admin:'Cerrada por admin'};
+const MOT = {finalizada:'Trabajo finalizado', fin_turno:'Fin de turno', cerrada_admin:'Cerrada por la oficina'};
 function descargarCSV(nombre, cabeceras, filas){
   const celda = v => { v = String(v ?? ''); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
   const csv = '\ufeff' + [cabeceras].concat(filas).map(l => l.map(celda).join(';')).join('\r\n');
@@ -1378,7 +1407,7 @@ async function mInicio(){
   const os = await DB.ordenes('abierta');
   app(`<h1>Mis coches</h1>
     ${os.length ? `<div class="lista">${os.map(o => tarjetaOrden(o, 'mio')).join('')}</div>`
-      : '<div class="panel vacio"><p>No tienes coches asignados ahora mismo.</p><p class="suave">Cuando el administrador te asigne trabajo aparecerá aquí.</p></div>'}`);
+      : '<div class="panel vacio"><p>No tienes coches asignados ahora mismo.</p><p class="suave">Cuando la oficina te asigne trabajo aparecerá aquí.</p></div>'}`);
   on('[data-mio]', 'click', e => mOrden(+e.currentTarget.dataset.mio));
   st.refresh = mInicio;
 }
@@ -1416,10 +1445,10 @@ async function mOrden(id, trasMarcar){
     try { b = leerChecklist(zona); } catch(x){ return toast(x.message, true); }
     const texto = tipo === 'final'
       ? `<h2>¿Guardar el control final?</h2>
-         <p>Se guardará con la fecha y hora actuales y ya no podrás editarlo, solo el administrador.</p>
+         <p>Se guardará con la fecha y hora actuales y ya no podrás editarlo, solo el personal de oficina.</p>
          <p>Después podrás pulsar <strong>Finalizar trabajo</strong>.</p>`
       : `<h2>¿Seguro que quieres guardarlo?</h2>
-         <p>Se guardará con la fecha y hora actuales y ya no podrás editarlo, solo el administrador.</p>
+         <p>Se guardará con la fecha y hora actuales y ya no podrás editarlo, solo el personal de oficina.</p>
          <p><strong>Al guardarlo empezarán las reparaciones:</strong> el tiempo del coche se pondrá en marcha de forma automática.</p>`;
     dialogo(texto, tipo === 'final' ? 'Guardar control final' : 'Guardar y empezar', async () => {
       await rpc('hacer_checklist', {p_orden: id, p_datos: b, p_tipo: tipo});

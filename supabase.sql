@@ -15,7 +15,7 @@ insert into public.ajustes(id, registro_abierto) values (1, true) on conflict (i
 create table if not exists public.talleres(
   id bigint generated always as identity primary key,
   nombre text not null,
-  logo text,            -- imagen en base64, la sube el administrador
+  logo text,            -- imagen en base64, lo sube el personal de oficina
   direccion text, telefono text, email text, cif text,
   creado timestamptz not null default now());
 alter table public.talleres add column if not exists logo text;
@@ -188,21 +188,13 @@ language sql stable as $$ select now() $$;
 
 create or replace function public.plantillas() returns jsonb
 language sql immutable as $$
-  select '{
-    "basico": [
+  -- "basico" y "completo" apuntan al mismo checklist de entrada, para que las órdenes
+  -- antiguas sigan viéndose bien. El de entrada y el control final son los que se usan.
+  select jsonb_build_object('inicial', v, 'basico', v, 'completo', v, 'final', f)
+  from (select '[
       {"id":"b1","texto":"Nivel de aceite del motor"},
       {"id":"b2","texto":"Líquido refrigerante"},
       {"id":"b3","texto":"Líquido de frenos"},
-      {"id":"b4","texto":"Presión de neumáticos"},
-      {"id":"b5","texto":"Luces exteriores"},
-      {"id":"b6","texto":"Limpiaparabrisas y líquido"},
-      {"id":"b7","texto":"Batería y bornes"},
-      {"id":"b8","texto":"Testigos del cuadro"}],
-    "completo": [
-      {"id":"b1","texto":"Nivel de aceite del motor"},
-      {"id":"b2","texto":"Líquido refrigerante"},
-      {"id":"b3","texto":"Líquido de frenos"},
-      {"id":"b4","texto":"Presión de neumáticos"},
       {"id":"b5","texto":"Luces exteriores"},
       {"id":"b6","texto":"Limpiaparabrisas y líquido"},
       {"id":"b7","texto":"Batería y bornes"},
@@ -213,13 +205,8 @@ language sql immutable as $$
       {"id":"c4","texto":"Dirección y rótulas"},
       {"id":"c5","texto":"Correa de accesorios"},
       {"id":"c6","texto":"Sistema de escape"},
-      {"id":"c7","texto":"Fugas bajo el vehículo"},
-      {"id":"c8","texto":"Filtro de aire"},
-      {"id":"c9","texto":"Filtro de habitáculo"},
-      {"id":"c10","texto":"Carrocería y cristales"},
-      {"id":"c11","texto":"Cinturones y airbag"},
-      {"id":"c12","texto":"Climatización"}],
-    "final": [
+      {"id":"c7","texto":"Fugas bajo el vehículo"}]'::jsonb as v,
+    '[
       {"id":"f1","texto":"Nivel de aceite"},
       {"id":"f2","texto":"Tapón y filtro"},
       {"id":"f3","texto":"Sin fugas"},
@@ -229,8 +216,7 @@ language sql immutable as $$
       {"id":"f7","texto":"Avisos del cuadro"},
       {"id":"f8","texto":"Servicio reseteado si procede"},
       {"id":"f9","texto":"Apriete de ruedas si se desmontaron"},
-      {"id":"f10","texto":"Vehículo listo"}]
-  }'::jsonb
+      {"id":"f10","texto":"Vehículo listo"}]'::jsonb as f) z
 $$;
 
 create or replace function public._yo() returns public.perfiles
@@ -247,7 +233,7 @@ language plpgsql stable security definer set search_path = public as $$
 declare t bigint;
 begin
   select taller_id into t from perfiles where id = auth.uid() and activo and rol = 'admin';
-  if t is null then raise exception 'Solo el administrador puede hacer esto'; end if;
+  if t is null then raise exception 'Solo el personal de oficina puede hacer esto'; end if;
   return t;
 end $$;
 
@@ -470,7 +456,7 @@ language plpgsql security definer set search_path = public as $$
 declare t bigint := public._admin(); v_coche bigint; v_orden bigint; x jsonb;
 begin
   if coalesce(trim(p->>'tipo_revision'),'') = '' then raise exception 'Indica el tipo de revisión'; end if;
-  if coalesce(p->>'tipo_checklist','') not in ('basico','completo') then raise exception 'Tipo de checklist no válido'; end if;
+  if coalesce(p->>'tipo_checklist','completo') not in ('basico','completo') then raise exception 'Tipo de checklist no válido'; end if;
   if jsonb_array_length(coalesce(p->'tareas','[]'::jsonb)) = 0 then raise exception 'Añade al menos una reparación'; end if;
   if nullif(p->>'coche_id','') is not null then
     select id into v_coche from coches where id = (p->>'coche_id')::bigint and taller_id = t;
@@ -479,7 +465,7 @@ begin
     v_coche := public.guardar_coche(null, p->'coche');
   end if;
   insert into ordenes(taller_id, coche_id, tipo_revision, tipo_checklist, notas)
-  values (t, v_coche, trim(p->>'tipo_revision'), p->>'tipo_checklist', nullif(trim(p->>'notas'),''))
+  values (t, v_coche, trim(p->>'tipo_revision'), coalesce(p->>'tipo_checklist','completo'), nullif(trim(p->>'notas'),''))
   returning id into v_orden;
   for x in select * from jsonb_array_elements(p->'tareas') loop
     perform public.guardar_tarea(null, v_orden, x->>'titulo', x->>'descripcion', (x->>'minutos')::numeric,
@@ -554,7 +540,7 @@ begin
     raise exception 'Este coche no está asignado a ti'; end if;
   if o.estado <> 'abierta' then raise exception 'La orden está cerrada'; end if;
   if exists(select 1 from checklists where orden_id = p_orden and tipo = p_tipo) then
-    raise exception 'Ese checklist ya está hecho. Solo el administrador puede modificarlo'; end if;
+    raise exception 'Ese checklist ya está hecho. Solo el personal de oficina puede modificarlo'; end if;
   if p_tipo = 'final' then
     if not exists(select 1 from checklists where orden_id = p_orden and tipo = 'inicial') then
       raise exception 'Primero hay que hacer el checklist inicial'; end if;
@@ -717,7 +703,7 @@ begin
   if not found then raise exception 'Orden no encontrada'; end if;
   if o.en_marcha_desde is null then raise exception 'Este coche no tiene el tiempo en marcha'; end if;
   update orden_sesiones set fin = now(), motivo = 'fin_turno',
-         nota = coalesce(nullif(trim(p_nota), ''), 'Tiempo parado por el administrador')
+         nota = coalesce(nullif(trim(p_nota), ''), 'Tiempo parado por la oficina')
    where orden_id = p_orden and fin is null;
   update ordenes set seg_consumidos = o.seg_consumidos + extract(epoch from now() - o.en_marcha_desde),
                      seg_tarea = o.seg_tarea + extract(epoch from now() - o.en_marcha_desde),
@@ -726,7 +712,7 @@ begin
    where id = p_orden;
 end $$;
 
--- ─────────────── Incidencias y avisos al administrador ───────────────
+-- ─────────────── Incidencias y avisos a la oficina ───────────────
 drop function if exists public.crear_incidencia(bigint, text);
 drop function if exists public.crear_nota(bigint, text, bigint);
 
