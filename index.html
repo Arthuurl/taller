@@ -53,6 +53,11 @@ header#top::after{content:"";display:block;height:6px;background:repeating-linea
   font-size:.8rem;line-height:1.25;overflow:hidden;cursor:pointer;border-left:4px solid var(--amar)}
 .turno span{display:block;color:#C9D2DB;font-size:.75rem;overflow:hidden;text-overflow:ellipsis}
 .turno.fantasma{background:var(--azul);opacity:.75;pointer-events:none}
+.piezas{margin-top:2px;font-size:.9rem;width:100%}
+.pieza{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:3px 0}
+.mini-btn{padding:2px 8px;min-height:28px;font-size:.82rem}
+.importes{max-width:420px;margin-left:auto}
+.importes .total td{font-weight:700;font-size:1.1rem;border-top:2px solid var(--tinta)}
 .chip{padding:6px 10px;min-height:36px}
 .chip .suave{margin-left:6px}
 .turno-fila+.turno-fila{margin-top:10px;padding-top:10px;border-top:1px solid var(--linea)}
@@ -144,8 +149,8 @@ label.combo{position:relative}
   box-shadow:0 8px 20px rgba(27,39,51,.18)}
 .combo-lista li{padding:9px 10px;cursor:pointer;font-size:.98rem}
 .combo-lista li:hover,.combo-lista li.sel{background:var(--tinta);color:#fff}
-#avisos{position:fixed;top:78px;right:12px;width:min(340px,calc(100vw - 24px));display:flex;flex-direction:column;gap:10px;z-index:15}
-.aviso{background:#fff;border:1px solid var(--linea);border-left:5px solid var(--azul);border-radius:6px;padding:12px;box-shadow:0 6px 20px rgba(27,39,51,.18);animation:entra .25s ease-out}
+#avisos{pointer-events:none;position:fixed;top:78px;right:12px;width:min(340px,calc(100vw - 24px));display:flex;flex-direction:column;gap:10px;z-index:15}
+.aviso{pointer-events:auto;background:#fff;border:1px solid var(--linea);border-left:5px solid var(--azul);border-radius:6px;padding:12px;box-shadow:0 6px 20px rgba(27,39,51,.18);animation:entra .25s ease-out}
 .aviso.a-incidencia{border-left-color:var(--rojo)}
 .aviso.a-fin_trabajo{border-left-color:var(--verde)}
 .aviso.a-pausa{border-left-color:#A06A00}
@@ -308,6 +313,9 @@ function normOrden(o){
     relevo: rel ? {de: nom(rel.mecanico_id), para: rel.relevo_id ? nom(rel.relevo_id) : null, nota: rel.nota, fin: ts(rel.fin)} : null,
     n_tareas: tareas.length, n_finalizadas: tareas.filter(t => t.estado === 'finalizada').length,
     fotos_informe: [].concat(o.fotos_informe || []),
+    piezas: (o.piezas || []).map(x => ({...x, cantidad: Number(x.cantidad),
+      precio: x.precio == null ? null : Number(x.precio)})).sort((a, b) => a.id - b.id),
+    total_piezas: (o.piezas || []).reduce((a, x) => a + Number(x.cantidad) * Number(x.precio || 0), 0),
     sesiones: ses.map(x => ({mecanico: nom(x.mecanico_id), inicio: ts(x.inicio), fin: ts(x.fin),
       motivo: x.motivo, nota: x.nota, relevo: x.relevo_id ? nom(x.relevo_id) : null}))
       .sort((a, b) => a.inicio - b.inicio),
@@ -352,7 +360,17 @@ const DB = {
     return normOrden(o);
   },
   async mecanicos(){
-    const r = await ok(sb.from('perfiles').select('id,nombre,usuario,activo,creado').eq('rol', 'mecanico').order('activo', {ascending: false}).order('nombre'));
+    const r = await ok(sb.from('perfiles').select('id,nombre,usuario,activo,creado').eq('rol', 'mecanico')
+      .order('activo', {ascending: false}).order('nombre'));
+    return r.map(m => ({...m, creado: ts(m.creado)}));
+  },
+  async ordenesDeCoche(cocheId){
+    const r = await ok(sb.from('ordenes').select(SEL_ORDEN).eq('coche_id', cocheId).order('creado', {ascending: false}));
+    return r.map(normOrden);
+  },
+  async personal(){
+    const r = await ok(sb.from('perfiles').select('id,nombre,usuario,rol,activo,creado').neq('rol', 'admin')
+      .order('activo', {ascending: false}).order('nombre'));
     return r.map(m => ({...m, creado: ts(m.creado)}));
   },
   async companeros(){
@@ -362,7 +380,7 @@ const DB = {
     const r = await ok(sb.from('coches').select('*, ordenes(count)').order('creado', {ascending: false}));
     return r.map(c => ({...c, n_ordenes: c.ordenes?.[0]?.count ?? 0}));
   },
-  async crearMecanico(b){
+  async crearUsuario(b){
     if (!/^[a-z0-9._-]{3,40}$/.test((b.usuario || '').trim().toLowerCase())) throw new Error('El usuario debe tener 3-40 caracteres: letras, números, punto o guion');
     if (!b.password || b.password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres');
     // cliente aparte para no cerrar la sesión de quien lo crea
@@ -370,8 +388,8 @@ const DB = {
       {auth: {persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'taller-aux'}});
     const d = await ok(aux.auth.signUp({email: aEmail(b.usuario), password: b.password}));
     if (!d.user || (d.user.identities && d.user.identities.length === 0)) throw new Error('Ese usuario ya existe');
-    await rpc('vincular_mecanico', {p_user: d.user.id, p_nombre: b.nombre});
-    if (!b.activo) await rpc('editar_mecanico', {p_id: d.user.id, p_nombre: b.nombre, p_activo: false, p_password: null});
+    await rpc('vincular_usuario', {p_user: d.user.id, p_nombre: b.nombre, p_rol: b.rol || 'mecanico'});
+    if (!b.activo) await rpc('editar_usuario', {p_id: d.user.id, p_nombre: b.nombre, p_activo: false});
   },
 };
 
@@ -586,7 +604,7 @@ function dialogo(html, okTxt, onOk, okClase='pri', opts = {}){
 
 /* ═════════ cabecera y sesión ═════════ */
 const MENU_ADMIN = [['ordenes','Órdenes',()=>vOrdenes()],['nueva','Nueva orden',()=>vNuevaOrden()],
-  ['avisos','Avisos',()=>vAvisos()],['mecanicos','Mecánicos',()=>vMecanicos()],
+  ['avisos','Avisos',()=>vAvisos()],['personal','Personal',()=>vPersonal()],
   ['coches','Coches',()=>vCoches()],['historico','Histórico',()=>vHistorico()],
   ['turnos','Turnos',()=>vTurnos()], ['taller','Mi taller',()=>vTaller()]];
 const MENU_MEC = [['inicio','Mis coches',()=>mInicio()], ['turnos','Mis turnos',()=>mTurnos()]];
@@ -751,6 +769,12 @@ function bloqueTrabajo(o, modo){
   const verTiempo = modo === 'admin' || trabajando || !abierta;   // el mecánico lo ve al empezar
   const puedoMarcar = abierta && (modo === 'admin' || trabajando);
   const todas = o.n_tareas > 0 && o.n_finalizadas === o.n_tareas;
+  const eur = n => n.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
+  const piezasDe = id => o.piezas.filter(x => (x.tarea_id || null) === id);
+  const listaPiezas = ps => ps.length ? `<div class="piezas">${ps.map(x => `<div class="pieza">
+      <span>${esc(x.descripcion)}${x.referencia ? ` <span class="suave">${esc(x.referencia)}</span>` : ''}${x.cantidad !== 1 ? ` <span class="suave">×${x.cantidad}</span>` : ''}${modo === 'admin' ? ` <span class="suave">${x.precio == null ? 'sin precio' : eur(x.precio * x.cantidad)}</span>` : ''}</span>
+      ${abierta && (modo === 'admin' || trabajando) ? `<button class="btn sec mini-btn" data-pieza="${x.id}">Editar</button>` : ''}
+    </div>`).join('')}</div>` : '';
   const filas = o.tareas.map(t => {
     const mia = modo === 'admin' || t.mecanicos.some(m => m.id === yo.id);
     const hecha = t.estado === 'finalizada';
@@ -765,9 +789,11 @@ function bloqueTrabajo(o, modo){
       </label>
       <div class="fila">
         ${modo === 'mec' && mia && !hecha && trabajando ? `<button class="btn sec" data-incidencia="${t.id}">Incidencia</button>` : ''}
+        ${abierta && (modo === 'admin' || (trabajando && mia)) ? `<button class="btn sec" data-pieza-nueva="${t.id}">Pieza</button>` : ''}
         ${modo === 'admin' ? `<button class="btn sec" data-editar="${t.id}">Editar</button>
           ${hecha ? '' : `<button class="btn peligro" data-borrar="${t.id}">Eliminar</button>`}` : ''}
       </div>
+      ${listaPiezas(piezasDe(t.id))}
     </div>`;
   }).join('') || '<p>Sin reparaciones.</p>';
   let acc = '';
@@ -799,7 +825,12 @@ function bloqueTrabajo(o, modo){
       </div>
     </div>
     ${o.relevo && abierta ? `<div class="nota-relevo">Relevo de ${esc(o.relevo.de)}${o.relevo.para ? ' para ' + esc(o.relevo.para) : ''}, ${fmtFecha(o.relevo.fin)}${o.relevo.nota ? ': ' + esc(o.relevo.nota) : ''}</div>` : ''}
-    <div class="reps">${filas}</div>
+    <div class="reps">${filas}
+      ${piezasDe(null).length || (abierta && (modo === 'admin' || trabajando)) ? `<div class="rep">
+        <div style="flex:1"><strong>Otras piezas</strong>${listaPiezas(piezasDe(null))}</div>
+        ${abierta && (modo === 'admin' || trabajando) ? '<button class="btn sec" data-pieza-nueva="">Pieza</button>' : ''}
+      </div>` : ''}</div>
+    ${modo === 'admin' && o.piezas.length ? `<p class="suave" style="margin-top:10px">Piezas: ${eur(o.total_piezas)}</p>` : ''}
     ${modo === 'admin' ? `<div class="fila" style="margin-top:12px"><button class="btn pri" id="t-nueva">Añadir reparación</button></div>` : ''}
     ${acc ? `<div class="fila" style="margin-top:12px">${acc}</div>` : ''}
   </article>`;
@@ -863,8 +894,9 @@ function tarjetaOrden(o, destino){
 async function vOrdenes(){
   marcar('ordenes');
   const filtro = st.filtro || 'abierta';
-  const os = await DB.ordenes(filtro);
-  app(`<div class="fila cab"><h1>Órdenes de trabajo</h1>
+  const [os, fichajes] = await Promise.all([DB.ordenes(filtro), DB.fichajes().catch(() => [])]);
+  app(`${panelFichaje(fichajes)}
+    <div class="fila cab"><h1>Órdenes de trabajo</h1>
     <div class="fila">${['abierta','finalizada','cancelada','todas'].map(e =>
       `<button class="btn ${e === filtro ? 'pri' : 'sec'}" data-filtro="${e}">${ETQ[e]}${e==='abierta'||e==='finalizada'||e==='cancelada'?'s':''}</button>`).join('')}</div></div>
     ${os.length ? `<div class="lista">${os.map(o => tarjetaOrden(o, 'orden')).join('')}</div>`
@@ -872,6 +904,7 @@ async function vOrdenes(){
   on('[data-filtro]', 'click', e => { st.filtro = e.currentTarget.dataset.filtro; vOrdenes(); });
   on('[data-orden]', 'click', e => vOrden(+e.currentTarget.dataset.orden));
   $('#ir-nueva')?.addEventListener('click', vNuevaOrden);
+  fichajesEnPantalla(vOrdenes);
   st.refresh = vOrdenes;
 }
 
@@ -893,6 +926,7 @@ async function vOrden(id){
         <div class="fila" style="margin-top:10px">
           <button class="btn sec" id="o-guardar">Guardar datos</button>
           <button class="btn sec" id="o-informe">Informe</button>
+          <button class="btn peligro" id="o-borrar">Eliminar orden</button>
           ${o.estado === 'abierta'
             ? `${o.en_marcha ? '<button class="btn sec" id="o-parar">Parar el tiempo</button>' : ''}
                <button class="btn ok" data-estado="finalizada">Cerrar orden</button><button class="btn peligro" data-estado="cancelada">Cancelar orden</button>`
@@ -908,6 +942,12 @@ async function vOrden(id){
   </div>`);
   $('#volver').onclick = () => vOrdenes();
   $('#o-informe').onclick = () => vInforme(id);
+  $('#o-borrar').onclick = () => {
+    dialogo(`<h2>Eliminar la orden ${o.id}</h2>
+      <p>Se borrarán sus reparaciones, checklists, piezas, fotos, tiempos y avisos. <strong>No se puede deshacer.</strong></p>
+      <p class="suave">Si solo quieres quitarla de en medio, usa Cancelar orden.</p>`,
+      'Eliminar del todo', async () => { await rpc('borrar_orden', {p_id: id}); toast('Orden eliminada'); vOrdenes(); }, 'peligro');
+  };
   $('#o-parar')?.addEventListener('click', () => {
     dialogo(`<h2>Parar el tiempo</h2>
       <p>El coche queda a medias, con su tiempo restante, y la orden sigue abierta. Cualquier mecánico asignado puede retomarlo.</p>
@@ -1041,6 +1081,11 @@ async function vNuevaOrden(){
   </div>`);
   const campos = $('#n-campos'), prev = $('#n-prev');
   enlazarPreview(campos, prev);
+  if (st.cochePara){
+    $('#n-sel').value = String(st.cochePara);
+    $('#n-sel').dispatchEvent(new Event('change'));
+    st.cochePara = null;
+  }
   $('#n-sel').onchange = e => {
     const c = coches.find(x => x.id === +e.target.value);
     campos.hidden = !!c;
@@ -1114,6 +1159,10 @@ async function vTaller(){
           <label>CIF<input id="t-cif" value="${esc(TALLER.cif || '')}"></label>
         </div>
         <label>Email<input id="t-email" type="email" value="${esc(TALLER.email || '')}"></label>
+        <div class="grid" style="margin:0">
+          <label>Precio de la hora (€)<input id="t-hora" type="number" min="0" step="0.5" value="${TALLER.precio_hora ?? ''}"></label>
+          <label>IVA (%)<input id="t-iva" type="number" min="0" max="100" step="1" value="${TALLER.iva ?? 21}"></label>
+        </div>
         <button class="btn pri" id="t-guardar">Guardar</button>
       </div>
     </section>
@@ -1135,7 +1184,9 @@ async function vTaller(){
   $('#t-guardar').onclick = accion(async () => {
     await rpc('guardar_taller', {p_nombre: $('#t-nombre').value, p_logo: borrar ? null : logo,
       p_direccion: $('#t-dir').value, p_telefono: $('#t-tel').value,
-      p_email: $('#t-email').value, p_cif: $('#t-cif').value, p_borrar_logo: borrar});
+      p_email: $('#t-email').value, p_cif: $('#t-cif').value, p_borrar_logo: borrar,
+      p_precio_hora: $('#t-hora').value === '' ? null : +$('#t-hora').value,
+      p_iva: $('#t-iva').value === '' ? null : +$('#t-iva').value});
     TALLER = await ok(sb.from('talleres').select('*').eq('id', yo.taller_id).single());
     yo.taller = TALLER.nombre;
     cabecera(); marcar('taller');
@@ -1145,36 +1196,41 @@ async function vTaller(){
 }
 
 /* ═════════ ADMIN: mecánicos ═════════ */
-async function vMecanicos(){
-  marcar('mecanicos'); st.refresh = null;
-  const mecs = await DB.mecanicos();
-  app(`<div class="fila cab"><h1>Mecánicos</h1><button class="btn pri" id="m-nuevo">Nuevo mecánico</button></div>
-    ${mecs.length ? `<div class="panel tabla"><table>
-      <thead><tr><th>Nombre</th><th>Usuario</th><th>Estado</th><th>Alta</th><th></th></tr></thead>
-      <tbody>${mecs.map(m => `<tr><td>${esc(m.nombre)}</td><td>${esc(m.usuario)}</td>
+const ROLES = {mecanico: 'Mecánico', oficina: 'Oficina'};
+async function vPersonal(){
+  marcar('personal'); st.refresh = null;
+  const gente = await DB.personal();
+  app(`<div class="fila cab"><h1>Personal</h1><button class="btn pri" id="m-nuevo">Nueva persona</button></div>
+    ${gente.length ? `<div class="panel tabla"><table>
+      <thead><tr><th>Nombre</th><th>Puesto</th><th>Usuario</th><th>Estado</th><th>Alta</th><th></th></tr></thead>
+      <tbody>${gente.map(m => `<tr><td>${esc(m.nombre)}</td><td>${ROLES[m.rol] || esc(m.rol)}</td><td>${esc(m.usuario)}</td>
         <td>${m.activo ? 'Activo' : '<span class="suave">Desactivado</span>'}</td><td>${fmtFecha(m.creado)}</td>
         <td class="derecha"><button class="btn sec" data-m="${m.id}">Editar</button></td></tr>`).join('')}</tbody></table></div>`
-    : '<div class="panel vacio"><p>Aún no hay mecánicos. Crea el primero para poder asignarle trabajo.</p></div>'}`);
-  const dlg = m => dialogo(`<h2>${m ? 'Editar mecánico' : 'Nuevo mecánico'}</h2>
+    : '<div class="panel vacio"><p>Aún no hay nadie dado de alta.</p></div>'}`);
+  const dlg = m => dialogo(`<h2>${m ? 'Editar persona' : 'Nueva persona'}</h2>
     <div class="pila">
       <label>Nombre<input id="d-nom" value="${esc(m?.nombre || '')}"></label>
+      <label>Puesto<select id="d-rol">${Object.entries(ROLES).map(([k, v]) =>
+        `<option value="${k}" ${m?.rol === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
       ${m ? `<p class="suave">Usuario: <strong>${esc(m.usuario)}</strong></p>` : '<label>Usuario<input id="d-usu" autocapitalize="none"></label>'}
       <label>${m ? 'Nueva contraseña (déjala vacía para no cambiarla)' : 'Contraseña'}<input id="d-pw" type="password" autocomplete="new-password" minlength="6"></label>
-      <label class="chk"><input id="d-act" type="checkbox" ${!m || m.activo ? 'checked' : ''}> Activo (puede entrar y recibir trabajo)</label>
+      <label class="chk"><input id="d-act" type="checkbox" ${!m || m.activo ? 'checked' : ''}> Activo (puede entrar en la app)</label>
     </div>`, 'Guardar', async d => {
       const b = {nombre: d.querySelector('#d-nom').value.trim(), usuario: d.querySelector('#d-usu')?.value,
-        password: d.querySelector('#d-pw').value || null, activo: d.querySelector('#d-act').checked};
-      if (m) await rpc('editar_mecanico', {p_id: m.id, p_nombre: b.nombre, p_activo: b.activo, p_password: b.password});
-      else await DB.crearMecanico(b);
+        rol: d.querySelector('#d-rol').value, password: d.querySelector('#d-pw').value || null,
+        activo: d.querySelector('#d-act').checked};
+      if (m) await rpc('editar_usuario', {p_id: m.id, p_nombre: b.nombre, p_activo: b.activo,
+        p_password: b.password, p_rol: b.rol});
+      else await DB.crearUsuario(b);
       await cargarNombres();
-      toast('Mecánico guardado'); vMecanicos();
+      toast('Guardado'); vPersonal();
     });
   $('#m-nuevo').onclick = () => dlg(null);
-  on('[data-m]', 'click', e => dlg(mecs.find(m => m.id === e.currentTarget.dataset.m)));
+  on('[data-m]', 'click', e => dlg(gente.find(m => m.id === e.currentTarget.dataset.m)));
 }
 
 /* ═════════ ADMIN: coches ═════════ */
-async function vCoches(){
+async function vCoches(editarId){
   marcar('coches'); st.refresh = null;
   const coches = await DB.coches();
   app(`<div class="fila cab"><h1>Coches</h1><button class="btn pri" id="c-nuevo">Nuevo coche</button></div>
@@ -1193,7 +1249,8 @@ async function vCoches(){
     enlazarPreview($('#d-campos'), $('#d-prev'));
   };
   $('#c-nuevo').onclick = () => dlg(null);
-  on('[data-c]', 'click', e => dlg(coches.find(c => c.id === +e.currentTarget.dataset.c)));
+  on('[data-c]', 'click', e => vCoche(+e.currentTarget.dataset.c));
+  if (editarId) dlg(coches.find(c => c.id === editarId));
 }
 
 /* ═════════ turnos ═════════ */
@@ -1211,7 +1268,7 @@ async function vTurnos(){
   dia.setHours(0, 0, 0, 0);
   st.diaTurnos = dia.getTime();
   const finDia = new Date(dia.getTime() + 86400000);
-  const [mecs, turnos, plantillas] = await Promise.all([DB.mecanicos(), DB.turnos(dia, finDia), DB.plantillasTurno()]);
+  const [mecs, turnos, plantillas] = await Promise.all([DB.personal(), DB.turnos(dia, finDia), DB.plantillasTurno()]);
   const activos = mecs.filter(m => m.activo);
   const horas = [];
   for (let h = H0; h <= H1; h++) horas.push(h);
@@ -1395,6 +1452,13 @@ async function vInforme(id, cliente = false){
   const deCk = ck => ck ? Object.values(ck.datos.items || {}).flatMap(v => v.fotos || []) : [];
   const todasFotos = [...new Set([...deCk(o.checklist), ...deCk(o.checklist_final), ...avisos.flatMap(a => a.fotos || [])])];
   let elegidas = o.fotos_informe.filter(f => todasFotos.includes(f));
+  const eur = n => Number(n || 0).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
+  const hayPrecios = o.piezas.some(x => x.precio != null);
+  const manoObra = TALLER?.precio_hora ? o.seg_informe / 3600 * Number(TALLER.precio_hora) : 0;
+  const base = manoObra + o.total_piezas;
+  const iva = Number(TALLER?.iva ?? 21);
+  const cuota = base * iva / 100;
+  const hayImporte = base > 0;
   app(`<div class="fila cab no-print">
       <button class="lnk" id="volver">Volver a la orden</button>
       <div class="fila">
@@ -1439,6 +1503,21 @@ async function vInforme(id, cliente = false){
           <td>${t.estado === 'finalizada' ? 'Hecha' : 'Pendiente'}</td>
           ${cliente ? '' : `<td>${fmtMin(t.seg_asignados)}</td><td>${t.seg_reales == null ? '—' : fmtMin(t.seg_reales)}</td><td>${esc(t.finalizada_por || '—')}</td>`}
           <td>${t.finalizada ? fmtFecha(t.finalizada) : '—'}</td></tr>`).join('') || `<tr><td colspan="${cliente ? 3 : 6}">Sin reparaciones.</td></tr>`}</tbody></table>
+      ${o.piezas.length ? `<h2>Piezas y materiales</h2>
+        <table><thead><tr><th>Pieza</th><th>Referencia</th><th>Cantidad</th>${hayPrecios ? '<th>Precio</th><th>Importe</th>' : ''}</tr></thead>
+          <tbody>${o.piezas.map(x => `<tr><td>${esc(x.descripcion)}</td><td>${esc(x.referencia || '')}</td>
+            <td>${x.cantidad}</td>${hayPrecios ? `<td>${x.precio == null ? '—' : eur(x.precio)}</td>
+            <td>${x.precio == null ? '—' : eur(x.precio * x.cantidad)}</td>` : ''}</tr>`).join('')}</tbody></table>` : ''}
+
+      ${hayImporte ? `<h2>Importe</h2>
+        <table class="importes"><tbody>
+          ${TALLER?.precio_hora ? `<tr><td>Mano de obra, ${fmtMin(o.seg_informe)} a ${eur(Number(TALLER.precio_hora))}/h</td><td class="derecha">${eur(manoObra)}</td></tr>` : ''}
+          ${o.total_piezas ? `<tr><td>Piezas y materiales</td><td class="derecha">${eur(o.total_piezas)}</td></tr>` : ''}
+          <tr><td>Base imponible</td><td class="derecha">${eur(base)}</td></tr>
+          <tr><td>IVA ${iva}%</td><td class="derecha">${eur(cuota)}</td></tr>
+          <tr class="total"><td>Total</td><td class="derecha">${eur(base + cuota)}</td></tr>
+        </tbody></table>` : ''}
+
       ${cliente ? '' : `<p>Tiempo asignado a las reparaciones: <strong>${fmtMin(o.seg_total)}</strong>.
          Con los dos checklists (12 min): <strong>${fmtMin(o.seg_informe)}</strong>.
          Tiempo real trabajado: <strong>${fmtMin(o.seg_reales)}</strong>.</p>
@@ -1484,6 +1563,32 @@ async function vInforme(id, cliente = false){
 const TIPO_AVISO = {incidencia:'Incidencia', nota:'Nota', fin_turno:'Fin de turno',
                     tarea:'Reparación hecha', fin_trabajo:'Coche terminado', pausa:'Pausa'};
 const avisosVistos = new Set();
+const sonidoAvisos = () => localStorage.getItem('taller_sonido') !== '0';
+function pitido(){
+  if (!sonidoAvisos()) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const notas = [880, 1175];
+    notas.forEach((f, i) => {
+      const osc = ctx.createOscillator(), vol = ctx.createGain();
+      osc.frequency.value = f; osc.type = 'sine';
+      vol.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.18);
+      vol.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + i * 0.18 + 0.02);
+      vol.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.18 + 0.16);
+      osc.connect(vol); vol.connect(ctx.destination);
+      osc.start(ctx.currentTime + i * 0.18); osc.stop(ctx.currentTime + i * 0.18 + 0.18);
+    });
+    setTimeout(() => ctx.close(), 1000);
+  } catch(e){}
+}
+function notificar(a){
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    const n = new Notification(`${TIPO_AVISO[a.tipo]}, ${a.mecanico}`,
+      {body: a.texto + (a.matricula ? `\n${a.matricula}` : ''), tag: 'aviso-' + a.id});
+    n.onclick = () => { window.focus(); vOrden(a.orden_id).catch(() => {}); n.close(); };
+  } catch(e){}
+}
 const fotosAviso = a => (a.fotos || []).length
   ? `<div class="fotos">${a.fotos.map(f => `<span class="mini"><img data-foto="${esc(f)}" alt="Foto del aviso"></span>`).join('')}</div>` : '';
 function cajaAviso(a){
@@ -1515,7 +1620,14 @@ async function contarAvisos(){
     const nuevos = await DB.avisos(true);
     const pin = $('#nav .pin');
     if (pin){ pin.hidden = !nuevos.length; pin.textContent = nuevos.length; }
-    nuevos.slice(0, 3).forEach(a => { if (!avisosVistos.has(a.id)){ avisosVistos.add(a.id); cajaAviso(a); } });
+    let sonar = false;
+    nuevos.slice(0, 3).forEach(a => {
+      if (!avisosVistos.has(a.id)){
+        avisosVistos.add(a.id); cajaAviso(a); notificar(a);
+        if (a.tipo === 'incidencia' || a.tipo === 'pausa') sonar = true;
+      }
+    });
+    if (sonar) pitido();
     nuevos.forEach(a => avisosVistos.add(a.id));
   } catch(e){}
 }
@@ -1526,7 +1638,12 @@ async function vAvisos(){
   const avisos = await DB.avisos(false);
   const sinLeer = avisos.filter(a => !a.leido).length;
   app(`<div class="fila cab"><h1>Avisos</h1>
-    ${sinLeer ? '<button class="btn sec" id="a-todos">Marcar todos como leídos</button>' : ''}</div>
+    <div class="fila">
+      <label class="chk"><input type="checkbox" id="a-sonido" ${sonidoAvisos() ? 'checked' : ''}> Sonido al entrar una incidencia</label>
+      ${('Notification' in window) && Notification.permission !== 'granted'
+        ? '<button class="btn sec" id="a-notif">Activar notificaciones</button>' : ''}
+      ${sinLeer ? '<button class="btn sec" id="a-todos">Marcar todos como leídos</button>' : ''}
+    </div></div>
     ${avisos.length ? `<div class="pila">${avisos.map(a => `<div class="panel aviso-fila${a.leido ? ' leido' : ''}">
       <div class="fila entre"><div><span class="estado e-${a.tipo === 'incidencia' ? 'cancelada' : a.tipo === 'fin_trabajo' ? 'finalizada' : 'abierta'}">${TIPO_AVISO[a.tipo]}</span>
         <strong style="margin-left:8px">${esc(a.mecanico)}</strong></div>
@@ -1540,10 +1657,63 @@ async function vAvisos(){
       </div>
     </div>`).join('')}</div>`
     : '<div class="panel vacio"><p>No hay avisos. Aquí aparecerán las incidencias y notas que manden los mecánicos.</p></div>'}`);
+  $('#a-sonido').onchange = e => {
+    localStorage.setItem('taller_sonido', e.target.checked ? '1' : '0');
+    if (e.target.checked) pitido();
+  };
+  $('#a-notif')?.addEventListener('click', async () => {
+    const r = await Notification.requestPermission();
+    toast(r === 'granted' ? 'Notificaciones activadas' : 'El navegador no las ha permitido', r !== 'granted');
+    vAvisos();
+  });
   $('#a-todos')?.addEventListener('click', accion(async () => { await rpc('marcar_avisos', {p_ids: null}); contarAvisos(); vAvisos(); }));
   on('[data-leer]', 'click', accion(async (e, b) => { await rpc('marcar_avisos', {p_ids: [+b.dataset.leer]}); contarAvisos(); vAvisos(); }));
   on('[data-ir]', 'click', e => vOrden(+e.currentTarget.dataset.ir));
   st.refresh = vAvisos;
+}
+
+async function vCoche(id){
+  marcar('coches'); st.refresh = null;
+  const [coches, ordenes] = await Promise.all([DB.coches(), DB.ordenesDeCoche(id)]);
+  const c = coches.find(x => x.id === id);
+  if (!c){ toast('Coche no encontrado', true); return vCoches(); }
+  const horas = ordenes.reduce((a, o) => a + o.seg_reales, 0);
+  app(`<p><button class="lnk" id="volver">Volver a coches</button></p>
+    <div class="dos">
+      <section class="pila">
+        <div class="panel">${fichaCoche(c)}
+          ${c.vin ? `<p class="suave">Bastidor: ${esc(c.vin)}</p>` : ''}
+          ${c.notas ? `<p>${esc(c.notas)}</p>` : ''}
+          <div class="fila" style="margin-top:12px">
+            <button class="btn sec" id="c-editar">Editar coche</button>
+            <button class="btn pri" id="c-orden">Nueva orden</button>
+            ${ordenes.length ? '' : '<button class="btn peligro" id="c-borrar">Eliminar coche</button>'}
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Resumen</h2>
+          <p>${ordenes.length} orden${ordenes.length === 1 ? '' : 'es'}, ${ordenes.reduce((a, o) => a + o.n_finalizadas, 0)} reparaciones hechas.</p>
+          ${horas ? `<p class="suave">Tiempo real trabajado en este coche: ${fmtMin(horas)}</p>` : ''}
+        </div>
+      </section>
+      <section class="pila">
+        <h2>Historial</h2>
+        ${ordenes.length ? ordenes.map(o => `<button class="panel tarjeta" data-orden="${o.id}">
+          <div class="fila entre"><strong>${esc(o.tipo_revision)}</strong>${badge(o.estado)}</div>
+          <div class="suave">${fmtFecha(o.creado)}${o.cerrado ? ` a ${fmtFecha(o.cerrado)}` : ''}</div>
+          <div style="margin-top:6px">${o.tareas.map(t => esc(t.titulo)).join(', ') || 'Sin reparaciones'}</div>
+          <div class="suave">${o.n_finalizadas} de ${o.n_tareas} hechas, ${fmtMin(o.seg_total)} asignados${o.seg_reales ? `, ${fmtMin(o.seg_reales)} reales` : ''}</div>
+        </button>`).join('') : '<div class="panel vacio"><p>Este coche todavía no tiene órdenes.</p></div>'}
+      </section>
+    </div>`);
+  $('#volver').onclick = () => vCoches();
+  $('#c-editar').onclick = () => vCoches(id);
+  $('#c-orden').onclick = () => { st.cochePara = id; vNuevaOrden(); };
+  $('#c-borrar')?.addEventListener('click', () => {
+    dialogo(`<h2>Eliminar ${esc(c.matricula)}</h2><p>Se borrará la ficha del coche. No se puede deshacer.</p>`,
+      'Eliminar', async () => { await rpc('borrar_coche', {p_id: id}); toast('Coche eliminado'); vCoches(); }, 'peligro');
+  });
+  on('[data-orden]', 'click', e => vOrden(+e.currentTarget.dataset.orden));
 }
 
 /* ═════════ ADMIN: histórico ═════════ */
@@ -1640,6 +1810,21 @@ async function vHistorico(){
 /* ═════════ MECÁNICO ═════════ */
 const FICHAJES = {entrada:'Entrada a trabajar', descanso:'Salida para descanso', vuelta:'Vuelta del descanso', fin:'Fin de turno'};
 const SIGUIENTES = {fin:['entrada'], entrada:['descanso','fin'], vuelta:['descanso','fin'], descanso:['vuelta','fin']};
+function fichajesEnPantalla(recargar){
+  on('[data-fichar]', 'click', accion(async (e, b) => {
+    const t = b.dataset.fichar;
+    const aviso = yo.rol === 'mecanico' && (t === 'descanso' || t === 'fin')
+      ? (t === 'descanso' ? 'Se parará el tiempo del coche que lleves.'
+                          : 'Se parará el tiempo del coche que lleves y quedará a medias.') : '';
+    if (aviso){
+      dialogo(`<h2>${FICHAJES[t]}</h2><p>${aviso}</p>`, 'Fichar', async () => {
+        await rpc('fichar', {p_tipo: t}); toast(FICHAJES[t] + ' fichada'); recargar();
+      });
+    } else {
+      await rpc('fichar', {p_tipo: t}); toast(FICHAJES[t] + ' fichada'); recargar();
+    }
+  }));
+}
 function panelFichaje(fichajes){
   const ultimo = fichajes[0]?.tipo || 'fin';
   const estado = {entrada:'Trabajando', vuelta:'Trabajando', descanso:'En el descanso', fin:'Fuera de turno'}[ultimo];
@@ -1663,18 +1848,7 @@ async function mInicio(){
     ${os.length ? `<div class="lista">${os.map(o => tarjetaOrden(o, 'mio')).join('')}</div>`
       : '<div class="panel vacio"><p>No tienes coches asignados ahora mismo.</p><p class="suave">Cuando la oficina te asigne trabajo aparecerá aquí.</p></div>'}`);
   on('[data-mio]', 'click', e => mOrden(+e.currentTarget.dataset.mio));
-  on('[data-fichar]', 'click', accion(async (e, b) => {
-    const t = b.dataset.fichar;
-    const aviso = t === 'descanso' ? 'Se parará el tiempo del coche que lleves.'
-      : t === 'fin' ? 'Se parará el tiempo del coche que lleves y quedará a medias.' : '';
-    if (aviso){
-      dialogo(`<h2>${FICHAJES[t]}</h2><p>${aviso}</p>`, 'Fichar', async () => {
-        await rpc('fichar', {p_tipo: t}); toast(FICHAJES[t] + ' fichada'); mInicio();
-      });
-    } else {
-      await rpc('fichar', {p_tipo: t}); toast(FICHAJES[t] + ' fichada'); mInicio();
-    }
-  }));
+  fichajesEnPantalla(mInicio);
   st.refresh = mInicio;
 }
 

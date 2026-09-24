@@ -17,21 +17,30 @@ create table if not exists public.talleres(
   nombre text not null,
   logo text,            -- imagen en base64, lo sube el personal de oficina
   direccion text, telefono text, email text, cif text,
+  precio_hora numeric, iva numeric not null default 21,
   creado timestamptz not null default now());
 alter table public.talleres add column if not exists logo text;
 alter table public.talleres add column if not exists direccion text;
 alter table public.talleres add column if not exists telefono text;
 alter table public.talleres add column if not exists email text;
 alter table public.talleres add column if not exists cif text;
+alter table public.talleres add column if not exists precio_hora numeric;
+alter table public.talleres add column if not exists iva numeric not null default 21;
 
 create table if not exists public.perfiles(
   id uuid primary key references auth.users(id) on delete cascade,
   taller_id bigint not null references public.talleres(id),
   nombre text not null,
   usuario text not null unique,
-  rol text not null check (rol in ('admin','mecanico')),
+  rol text not null check (rol in ('admin','oficina','mecanico')),
   activo boolean not null default true,
   creado timestamptz not null default now());
+
+do $$
+begin
+  alter table public.perfiles drop constraint if exists perfiles_rol_check;
+  alter table public.perfiles add constraint perfiles_rol_check check (rol in ('admin','oficina','mecanico'));
+end $$;
 
 create table if not exists public.coches(
   id bigint generated always as identity primary key,
@@ -171,6 +180,19 @@ create table if not exists public.turnos(
 create index if not exists ix_turnos on public.turnos(taller_id, inicio);
 create index if not exists ix_turnos_mec on public.turnos(mecanico_id, inicio);
 
+create table if not exists public.piezas(
+  id bigint generated always as identity primary key,
+  taller_id bigint not null references public.talleres(id),
+  orden_id bigint not null references public.ordenes(id) on delete cascade,
+  tarea_id bigint references public.tareas(id) on delete set null,
+  descripcion text not null,
+  referencia text,
+  cantidad numeric not null default 1 check (cantidad > 0),
+  precio numeric,
+  creado timestamptz not null default now(),
+  creado_por uuid references public.perfiles(id));
+create index if not exists ix_piezas on public.piezas(orden_id);
+
 -- Un mecánico solo puede estar trabajando en un coche a la vez
 create unique index if not exists un_coche_a_la_vez on public.orden_sesiones(mecanico_id) where fin is null;
 create index if not exists ix_tareas_orden on public.tareas(orden_id);
@@ -185,7 +207,7 @@ $$;
 
 create or replace function public.es_admin() returns boolean
 language sql stable security definer set search_path = public as $$
-  select coalesce((select rol = 'admin' from perfiles where id = auth.uid() and activo), false)
+  select coalesce((select rol in ('admin','oficina') from perfiles where id = auth.uid() and activo), false)
 $$;
 
 create or replace function public.tarea_mia(p bigint) returns boolean
@@ -261,7 +283,7 @@ create or replace function public._admin() returns bigint
 language plpgsql stable security definer set search_path = public as $$
 declare t bigint;
 begin
-  select taller_id into t from perfiles where id = auth.uid() and activo and rol = 'admin';
+  select taller_id into t from perfiles where id = auth.uid() and activo and rol in ('admin','oficina');
   if t is null then raise exception 'Solo el personal de oficina puede hacer esto'; end if;
   return t;
 end $$;
@@ -279,6 +301,7 @@ alter table public.tarea_mecanicos enable row level security;
 alter table public.orden_sesiones  enable row level security;
 alter table public.avisos          enable row level security;
 alter table public.fichajes        enable row level security;
+alter table public.piezas          enable row level security;
 alter table public.turnos          enable row level security;
 alter table public.turnos_plantilla enable row level security;
 
@@ -301,6 +324,10 @@ create policy leer on public.tareas for select to authenticated
 drop policy if exists leer on public.tarea_mecanicos;
 create policy leer on public.tarea_mecanicos for select to authenticated
   using (taller_id = public.mi_taller() and (public.es_admin() or public.tarea_de_orden_mia(tarea_id)));
+drop policy if exists leer on public.piezas;
+create policy leer on public.piezas for select to authenticated
+  using (taller_id = public.mi_taller() and (public.es_admin() or public.orden_mia(orden_id)));
+
 drop policy if exists leer on public.turnos;
 create policy leer on public.turnos for select to authenticated
   using (taller_id = public.mi_taller() and (public.es_admin() or mecanico_id = auth.uid()));
@@ -343,29 +370,41 @@ exception when unique_violation then
   raise exception 'Ese usuario ya existe';
 end $$;
 
-create or replace function public.vincular_mecanico(p_user uuid, p_nombre text) returns void
+drop function if exists public.vincular_mecanico(uuid, text);
+drop function if exists public.editar_mecanico(uuid, text, boolean, text);
+
+create or replace function public.vincular_usuario(p_user uuid, p_nombre text, p_rol text default 'mecanico') returns void
 language plpgsql security definer set search_path = public as $$
 declare t bigint := public._admin(); v_email text; v_creado timestamptz;
 begin
-  if length(trim(coalesce(p_nombre,''))) < 2 then raise exception 'Escribe el nombre del mecánico'; end if;
+  if p_rol not in ('mecanico','oficina') then raise exception 'Rol no válido'; end if;
+  if length(trim(coalesce(p_nombre,''))) < 2 then raise exception 'Escribe el nombre'; end if;
   select email, created_at into v_email, v_creado from auth.users where id = p_user;
   if not found then raise exception 'Usuario no encontrado'; end if;
   if v_creado < now() - interval '15 minutes' or exists(select 1 from perfiles where id = p_user) then
     raise exception 'Ese usuario ya existe'; end if;
   insert into perfiles(id, taller_id, nombre, usuario, rol)
-    values (p_user, t, trim(p_nombre), split_part(v_email, '@', 1), 'mecanico');
+    values (p_user, t, trim(p_nombre), split_part(v_email, '@', 1), p_rol);
 exception when unique_violation then
   raise exception 'Ese usuario ya existe';
 end $$;
 
-create or replace function public.editar_mecanico(p_id uuid, p_nombre text, p_activo boolean, p_password text default null)
+create or replace function public.editar_usuario(p_id uuid, p_nombre text, p_activo boolean,
+        p_password text default null, p_rol text default null)
 returns void language plpgsql security definer set search_path = public, extensions as $$
 declare t bigint := public._admin();
 begin
-  if length(trim(coalesce(p_nombre,''))) < 2 then raise exception 'Escribe el nombre del mecánico'; end if;
-  update perfiles set nombre = trim(p_nombre), activo = p_activo
-   where id = p_id and taller_id = t and rol = 'mecanico';
-  if not found then raise exception 'Mecánico no encontrado'; end if;
+  if length(trim(coalesce(p_nombre,''))) < 2 then raise exception 'Escribe el nombre'; end if;
+  if p_rol is not null and p_rol not in ('mecanico','oficina') then raise exception 'Rol no válido'; end if;
+  if p_id = auth.uid() and not p_activo then raise exception 'No puedes desactivarte a ti mismo'; end if;
+  if exists(select 1 from tarea_mecanicos tm join tareas ta on ta.id = tm.tarea_id
+            join ordenes o on o.id = ta.orden_id
+            where tm.mecanico_id = p_id and o.estado = 'abierta' and ta.estado <> 'finalizada'
+              and coalesce(p_rol, 'mecanico') <> 'mecanico') then
+    raise exception 'Ese mecánico tiene reparaciones abiertas. Reasígnalas antes de pasarlo a oficina'; end if;
+  update perfiles set nombre = trim(p_nombre), activo = p_activo, rol = coalesce(p_rol, rol)
+   where id = p_id and taller_id = t and rol in ('mecanico','oficina');
+  if not found then raise exception 'Persona no encontrada'; end if;
   if coalesce(p_password, '') <> '' then
     if length(p_password) < 6 then raise exception 'La contraseña debe tener al menos 6 caracteres'; end if;
     update auth.users set encrypted_password = extensions.crypt(p_password, extensions.gen_salt('bf')),
@@ -382,14 +421,19 @@ end $$;
 
 create or replace function public.guardar_taller(p_nombre text, p_logo text default null,
         p_direccion text default null, p_telefono text default null,
-        p_email text default null, p_cif text default null, p_borrar_logo boolean default false) returns void
+        p_email text default null, p_cif text default null, p_borrar_logo boolean default false,
+        p_precio_hora numeric default null, p_iva numeric default null) returns void
 language plpgsql security definer set search_path = public as $$
 declare t bigint := public._admin();
 begin
   if length(trim(coalesce(p_nombre,''))) < 2 then raise exception 'Escribe el nombre del taller'; end if;
   if p_logo is not null and length(p_logo) > 400000 then
     raise exception 'El logo pesa demasiado. Usa una imagen más pequeña'; end if;
+  if p_iva is not null and (p_iva < 0 or p_iva > 100) then raise exception 'IVA no válido'; end if;
+  if p_precio_hora is not null and p_precio_hora < 0 then raise exception 'Precio por hora no válido'; end if;
   update talleres set nombre = trim(p_nombre),
+                      precio_hora = p_precio_hora,
+                      iva = coalesce(p_iva, iva),
                       direccion = nullif(trim(coalesce(p_direccion,'')),''),
                       telefono  = nullif(trim(coalesce(p_telefono,'')),''),
                       email     = nullif(trim(coalesce(p_email,'')),''),
@@ -755,6 +799,66 @@ begin
    where id = p_orden;
 end $$;
 
+-- ─────────────── Piezas ───────────────
+create or replace function public.guardar_pieza(p_id bigint, p_orden bigint, p_descripcion text,
+        p_cantidad numeric default 1, p_precio numeric default null, p_referencia text default null,
+        p_tarea bigint default null) returns bigint
+language plpgsql security definer set search_path = public as $$
+declare yo perfiles := public._yo(); v_id bigint; v_precio numeric;
+begin
+  if length(trim(coalesce(p_descripcion,''))) < 2 then raise exception 'Escribe qué pieza es'; end if;
+  if coalesce(p_cantidad, 0) <= 0 then raise exception 'La cantidad tiene que ser mayor que cero'; end if;
+  if not exists(select 1 from ordenes where id = p_orden and taller_id = yo.taller_id) then
+    raise exception 'Orden no encontrada'; end if;
+  if yo.rol = 'mecanico' then
+    if not public.orden_mia(p_orden) then raise exception 'Este coche no está asignado a ti'; end if;
+    v_precio := null;   -- los precios los pone la oficina
+  else
+    v_precio := p_precio;
+  end if;
+  if p_id is null then
+    insert into piezas(taller_id, orden_id, tarea_id, descripcion, referencia, cantidad, precio, creado_por)
+    values (yo.taller_id, p_orden, p_tarea, trim(p_descripcion), nullif(trim(coalesce(p_referencia,'')),''),
+            p_cantidad, v_precio, yo.id)
+    returning id into v_id;
+  else
+    update piezas set descripcion = trim(p_descripcion), referencia = nullif(trim(coalesce(p_referencia,'')),''),
+                      cantidad = p_cantidad, tarea_id = p_tarea,
+                      precio = case when yo.rol = 'mecanico' then precio else v_precio end
+     where id = p_id and taller_id = yo.taller_id returning id into v_id;
+    if v_id is null then raise exception 'Pieza no encontrada'; end if;
+  end if;
+  return v_id;
+end $$;
+
+create or replace function public.borrar_pieza(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare yo perfiles := public._yo();
+begin
+  delete from piezas where id = p_id and taller_id = yo.taller_id
+    and (yo.rol <> 'mecanico' or public.orden_mia(orden_id));
+  if not found then raise exception 'Pieza no encontrada'; end if;
+end $$;
+
+-- ─────────────── Borrar coches y órdenes ───────────────
+create or replace function public.borrar_orden(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  delete from ordenes where id = p_id and taller_id = t;
+  if not found then raise exception 'Orden no encontrada'; end if;
+end $$;
+
+create or replace function public.borrar_coche(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  if exists(select 1 from ordenes where coche_id = p_id) then
+    raise exception 'Ese coche tiene órdenes. Bórralas antes o deja el coche como está'; end if;
+  delete from coches where id = p_id and taller_id = t;
+  if not found then raise exception 'Coche no encontrado'; end if;
+end $$;
+
 -- ─────────────── Turnos ───────────────
 create or replace function public.guardar_plantilla_turno(p_id bigint, p_nombre text,
         p_inicio time, p_fin time) returns bigint
@@ -790,8 +894,8 @@ begin
   if p_fin <= p_inicio then raise exception 'El turno tiene que acabar después de empezar'; end if;
   if p_fin - p_inicio > interval '16 hours' then raise exception 'Un turno no puede durar más de 16 horas'; end if;
   select nombre into v_nombre from perfiles
-   where id = p_mecanico and taller_id = t and rol = 'mecanico';
-  if v_nombre is null then raise exception 'Ese mecánico no es de este taller'; end if;
+   where id = p_mecanico and taller_id = t and rol in ('mecanico','oficina');
+  if v_nombre is null then raise exception 'Esa persona no es de este taller'; end if;
   if exists(select 1 from turnos where mecanico_id = p_mecanico and (p_id is null or id <> p_id)
             and inicio < p_fin and fin > p_inicio) then
     raise exception '% ya tiene otro turno a esa hora', v_nombre; end if;
