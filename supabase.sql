@@ -42,6 +42,14 @@ begin
   alter table public.perfiles add constraint perfiles_rol_check check (rol in ('admin','oficina','mecanico'));
 end $$;
 
+create table if not exists public.clientes(
+  id bigint generated always as identity primary key,
+  taller_id bigint not null references public.talleres(id),
+  nombre text not null,
+  telefono text, email text, dni text, notas text,
+  creado timestamptz not null default now());
+create index if not exists ix_clientes on public.clientes(taller_id, nombre);
+
 create table if not exists public.coches(
   id bigint generated always as identity primary key,
   taller_id bigint not null references public.talleres(id),
@@ -49,8 +57,10 @@ create table if not exists public.coches(
   anio int, color text not null default '#3A6EA5',
   carroceria text not null default 'berlina',
   km int, vin text, notas text,
+  cliente_id bigint references public.clientes(id) on delete set null,
   creado timestamptz not null default now(),
   unique (taller_id, matricula));
+alter table public.coches add column if not exists cliente_id bigint references public.clientes(id) on delete set null;
 
 create table if not exists public.ordenes(
   id bigint generated always as identity primary key,
@@ -74,6 +84,21 @@ alter table public.ordenes add column if not exists seg_tarea numeric not null d
 alter table public.ordenes add column if not exists fotos_informe jsonb not null default '[]'::jsonb;
 alter table public.ordenes add column if not exists cuenta_mecanico uuid references public.perfiles(id);
 alter table public.ordenes add column if not exists en_marcha_desde timestamptz;
+
+create table if not exists public.citas(
+  id bigint generated always as identity primary key,
+  taller_id bigint not null references public.talleres(id),
+  cliente_id bigint references public.clientes(id) on delete set null,
+  coche_id bigint references public.coches(id) on delete set null,
+  matricula text,
+  motivo text not null,
+  inicio timestamptz not null,
+  minutos int not null default 60 check (minutos > 0),
+  estado text not null default 'prevista' check (estado in ('prevista','llegado','anulada')),
+  notas text,
+  orden_id bigint references public.ordenes(id) on delete set null,
+  creado timestamptz not null default now());
+create index if not exists ix_citas on public.citas(taller_id, inicio);
 
 create table if not exists public.checklists(
   orden_id bigint not null references public.ordenes(id) on delete cascade,
@@ -301,6 +326,8 @@ alter table public.tarea_mecanicos enable row level security;
 alter table public.orden_sesiones  enable row level security;
 alter table public.avisos          enable row level security;
 alter table public.fichajes        enable row level security;
+alter table public.clientes        enable row level security;
+alter table public.citas           enable row level security;
 alter table public.piezas          enable row level security;
 alter table public.turnos          enable row level security;
 alter table public.turnos_plantilla enable row level security;
@@ -324,6 +351,13 @@ create policy leer on public.tareas for select to authenticated
 drop policy if exists leer on public.tarea_mecanicos;
 create policy leer on public.tarea_mecanicos for select to authenticated
   using (taller_id = public.mi_taller() and (public.es_admin() or public.tarea_de_orden_mia(tarea_id)));
+drop policy if exists leer on public.clientes;
+create policy leer on public.clientes for select to authenticated
+  using (taller_id = public.mi_taller() and public.es_admin());
+drop policy if exists leer on public.citas;
+create policy leer on public.citas for select to authenticated
+  using (taller_id = public.mi_taller() and public.es_admin());
+
 drop policy if exists leer on public.piezas;
 create policy leer on public.piezas for select to authenticated
   using (taller_id = public.mi_taller() and (public.es_admin() or public.orden_mia(orden_id)));
@@ -466,6 +500,69 @@ exception when others then
   raise notice 'No se pudieron crear las reglas de Storage: mira el README';
 end $$;
 
+-- ─────────────── Clientes y citas ───────────────
+create or replace function public.guardar_cliente(p_id bigint, p_nombre text, p_telefono text default null,
+        p_email text default null, p_dni text default null, p_notas text default null) returns bigint
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin(); v_id bigint;
+begin
+  if length(trim(coalesce(p_nombre,''))) < 2 then raise exception 'Escribe el nombre del cliente'; end if;
+  if p_id is null then
+    insert into clientes(taller_id, nombre, telefono, email, dni, notas)
+    values (t, trim(p_nombre), nullif(trim(coalesce(p_telefono,'')),''), nullif(trim(coalesce(p_email,'')),''),
+            nullif(upper(trim(coalesce(p_dni,''))),''), nullif(trim(coalesce(p_notas,'')),''))
+    returning id into v_id;
+  else
+    update clientes set nombre = trim(p_nombre), telefono = nullif(trim(coalesce(p_telefono,'')),''),
+                        email = nullif(trim(coalesce(p_email,'')),''), dni = nullif(upper(trim(coalesce(p_dni,''))),''),
+                        notas = nullif(trim(coalesce(p_notas,'')),'')
+     where id = p_id and taller_id = t returning id into v_id;
+    if v_id is null then raise exception 'Cliente no encontrado'; end if;
+  end if;
+  return v_id;
+end $$;
+
+create or replace function public.borrar_cliente(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  delete from clientes where id = p_id and taller_id = t;
+  if not found then raise exception 'Cliente no encontrado'; end if;
+end $$;
+
+create or replace function public.guardar_cita(p_id bigint, p_motivo text, p_inicio timestamptz,
+        p_minutos int default 60, p_cliente bigint default null, p_coche bigint default null,
+        p_matricula text default null, p_notas text default null, p_estado text default null) returns bigint
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin(); v_id bigint;
+begin
+  if length(trim(coalesce(p_motivo,''))) < 2 then raise exception 'Escribe el motivo de la cita'; end if;
+  if p_estado is not null and p_estado not in ('prevista','llegado','anulada') then
+    raise exception 'Estado no válido'; end if;
+  if p_id is null then
+    insert into citas(taller_id, cliente_id, coche_id, matricula, motivo, inicio, minutos, notas)
+    values (t, p_cliente, p_coche, nullif(upper(regexp_replace(coalesce(p_matricula,''), '[\s-]', '', 'g')),''),
+            trim(p_motivo), p_inicio, coalesce(p_minutos, 60), nullif(trim(coalesce(p_notas,'')),''))
+    returning id into v_id;
+  else
+    update citas set cliente_id = p_cliente, coche_id = p_coche,
+                     matricula = nullif(upper(regexp_replace(coalesce(p_matricula,''), '[\s-]', '', 'g')),''),
+                     motivo = trim(p_motivo), inicio = p_inicio, minutos = coalesce(p_minutos, minutos),
+                     notas = nullif(trim(coalesce(p_notas,'')),''), estado = coalesce(p_estado, estado)
+     where id = p_id and taller_id = t returning id into v_id;
+    if v_id is null then raise exception 'Cita no encontrada'; end if;
+  end if;
+  return v_id;
+end $$;
+
+create or replace function public.borrar_cita(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  delete from citas where id = p_id and taller_id = t;
+  if not found then raise exception 'Cita no encontrada'; end if;
+end $$;
+
 -- ─────────────── Coches y órdenes ───────────────
 create or replace function public.guardar_coche(p_id bigint, p jsonb) returns bigint
 language plpgsql security definer set search_path = public as $$
@@ -478,16 +575,18 @@ begin
     raise exception 'Tipo de carrocería no válido'; end if;
   if coalesce(p->>'color','#3A6EA5') !~ '^#[0-9a-fA-F]{6}$' then raise exception 'Color no válido'; end if;
   if p_id is null then
-    insert into coches(taller_id, matricula, marca, modelo, anio, color, carroceria, km, vin, notas)
+    insert into coches(taller_id, matricula, marca, modelo, anio, color, carroceria, km, vin, notas, cliente_id)
     values (t, v_mat, trim(p->>'marca'), trim(p->>'modelo'), nullif(p->>'anio','')::int,
             coalesce(p->>'color','#3A6EA5'), coalesce(p->>'carroceria','berlina'),
-            nullif(p->>'km','')::numeric::int, nullif(trim(p->>'vin'),''), nullif(trim(p->>'notas'),''))
+            nullif(p->>'km','')::numeric::int, nullif(trim(p->>'vin'),''), nullif(trim(p->>'notas'),''),
+            nullif(p->>'cliente_id','')::bigint)
     returning id into v_id;
   else
     update coches set matricula = v_mat, marca = trim(p->>'marca'), modelo = trim(p->>'modelo'),
       anio = nullif(p->>'anio','')::int, color = coalesce(p->>'color','#3A6EA5'),
       carroceria = coalesce(p->>'carroceria','berlina'), km = nullif(p->>'km','')::numeric::int,
-      vin = nullif(trim(p->>'vin'),''), notas = nullif(trim(p->>'notas'),'')
+      vin = nullif(trim(p->>'vin'),''), notas = nullif(trim(p->>'notas'),''),
+      cliente_id = nullif(p->>'cliente_id','')::bigint
     where id = p_id and taller_id = t returning id into v_id;
     if v_id is null then raise exception 'Coche no encontrado'; end if;
   end if;
@@ -919,6 +1018,28 @@ begin
   if not found then raise exception 'Turno no encontrado'; end if;
 end $$;
 
+-- ─────────────── Panel de coches del taller ───────────────
+-- Para que los mecánicos sepan quién lleva cada coche, sin ver el trabajo de los demás.
+create or replace function public.coches_del_taller()
+returns table(orden_id bigint, matricula text, marca text, modelo text, color text, carroceria text,
+              estado text, en_marcha boolean, mecanicos text, tipo_revision text)
+language plpgsql stable security definer set search_path = public as $$
+#variable_conflict use_column
+declare yo perfiles := public._yo();
+begin
+  return query
+  select o.id, c.matricula, c.marca, c.modelo, c.color, c.carroceria, o.estado,
+         o.en_marcha_desde is not null,
+         coalesce((select string_agg(distinct u.nombre, ', ' order by u.nombre)
+                   from tareas ta join tarea_mecanicos tm on tm.tarea_id = ta.id
+                   join perfiles u on u.id = tm.mecanico_id
+                   where ta.orden_id = o.id), 'sin asignar'),
+         o.tipo_revision
+  from ordenes o join coches c on c.id = o.coche_id
+  where o.taller_id = yo.taller_id and o.estado = 'abierta'
+  order by c.matricula;
+end $$;
+
 -- ─────────────── Fichajes de jornada ───────────────
 create or replace function public.fichar(p_tipo text) returns text
 language plpgsql security definer set search_path = public as $$
@@ -1068,6 +1189,105 @@ declare t bigint := public._admin();
 begin
   update avisos set leido = now(), leido_por = auth.uid()
    where taller_id = t and leido is null and (p_ids is null or id = any(p_ids));
+end $$;
+
+-- ─────────────── Panel, buscador y jornada ───────────────
+create or replace function public.panel() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare t bigint := public._admin(); mes timestamptz := date_trunc('month', now());
+begin
+  return jsonb_build_object(
+    'abiertas', (select count(*) from ordenes where taller_id = t and estado = 'abierta'),
+    'en_marcha', (select count(*) from ordenes where taller_id = t and en_marcha_desde is not null),
+    'sin_checklist', (select count(*) from ordenes o where o.taller_id = t and o.estado = 'abierta'
+                      and not exists(select 1 from checklists k where k.orden_id = o.id and k.tipo = 'inicial')),
+    'avisos', (select count(*) from avisos where taller_id = t and leido is null),
+    'citas_hoy', (select count(*) from citas where taller_id = t and estado = 'prevista'
+                  and inicio >= date_trunc('day', now()) and inicio < date_trunc('day', now()) + interval '1 day'),
+    'cerradas_mes', (select count(*) from ordenes where taller_id = t and estado = 'finalizada' and cerrado >= mes),
+    'reparaciones_mes', (select count(*) from tareas ta join ordenes o on o.id = ta.orden_id
+                         where o.taller_id = t and ta.estado = 'finalizada' and ta.finalizada >= mes),
+    'facturado_mes', (select round(coalesce(sum(
+          (select coalesce(sum(ta.seg_asignados), 0) + public.seg_checklists() from tareas ta where ta.orden_id = o.id)
+            / 3600.0 * coalesce((select precio_hora from talleres where id = t), 0)
+          + (select coalesce(sum(pz.cantidad * coalesce(pz.precio, 0)), 0) from piezas pz where pz.orden_id = o.id)
+        ), 0)::numeric, 2)
+        from ordenes o where o.taller_id = t and o.estado = 'finalizada' and o.cerrado >= mes),
+    'mecanicos', (select coalesce(jsonb_agg(x order by x->>'nombre'), '[]'::jsonb) from (
+        select jsonb_build_object('nombre', u.nombre,
+                 'hechas', count(ta.id),
+                 'asignado', coalesce(sum(ta.seg_asignados), 0),
+                 'real', coalesce(sum(ta.seg_reales), 0)) as x
+        from perfiles u left join tareas ta on ta.finalizada_por = u.id and ta.finalizada >= mes
+        where u.taller_id = t and u.rol = 'mecanico' and u.activo
+        group by u.id, u.nombre) y),
+    'top', (select coalesce(jsonb_agg(x), '[]'::jsonb) from (
+        select jsonb_build_object('titulo', ta.titulo, 'veces', count(*)) as x
+        from tareas ta join ordenes o on o.id = ta.orden_id
+        where o.taller_id = t and ta.estado = 'finalizada'
+        group by ta.titulo order by count(*) desc limit 5) z));
+end $$;
+
+create or replace function public.buscar(p_texto text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare t bigint := public._admin(); q text := '%' || trim(coalesce(p_texto,'')) || '%';
+        qm text := '%' || upper(regexp_replace(coalesce(p_texto,''), '[\s-]', '', 'g')) || '%';
+begin
+  if length(trim(coalesce(p_texto,''))) < 2 then raise exception 'Escribe al menos dos letras'; end if;
+  return jsonb_build_object(
+    'coches', (select coalesce(jsonb_agg(x), '[]'::jsonb) from (
+        select jsonb_build_object('id', c.id, 'matricula', c.matricula, 'marca', c.marca, 'modelo', c.modelo,
+                 'cliente', cl.nombre) as x
+        from coches c left join clientes cl on cl.id = c.cliente_id
+        where c.taller_id = t and (c.matricula like qm or c.marca ilike q or c.modelo ilike q
+                                   or c.vin ilike q or cl.nombre ilike q)
+        order by c.matricula limit 20) a),
+    'clientes', (select coalesce(jsonb_agg(x), '[]'::jsonb) from (
+        select jsonb_build_object('id', cl.id, 'nombre', cl.nombre, 'telefono', cl.telefono,
+                 'coches', (select count(*) from coches c where c.cliente_id = cl.id)) as x
+        from clientes cl
+        where cl.taller_id = t and (cl.nombre ilike q or cl.telefono ilike q or cl.email ilike q or cl.dni ilike q)
+        order by cl.nombre limit 20) b),
+    'ordenes', (select coalesce(jsonb_agg(x), '[]'::jsonb) from (
+        select jsonb_build_object('id', o.id, 'matricula', c.matricula, 'tipo', o.tipo_revision,
+                 'estado', o.estado, 'creado', o.creado) as x
+        from ordenes o join coches c on c.id = o.coche_id
+        where o.taller_id = t and (c.matricula like qm or o.tipo_revision ilike q
+              or o.id::text = trim(coalesce(p_texto,'')))
+        order by o.creado desc limit 20) d));
+end $$;
+
+create or replace function public.resumen_jornada(p_desde timestamptz, p_hasta timestamptz,
+        p_persona uuid default null)
+returns table(persona text, persona_id uuid, dia date, entrada timestamptz, salida timestamptz,
+              segundos numeric, descansos numeric)
+language plpgsql stable security definer set search_path = public as $$
+#variable_conflict use_column
+declare t bigint := public._admin();
+begin
+  return query
+  with f as (
+    select fi.mecanico_id, u.nombre, fi.tipo, fi.momento,
+           (fi.momento at time zone current_setting('TimeZone'))::date as d
+    from fichajes fi join perfiles u on u.id = fi.mecanico_id
+    where fi.taller_id = t and fi.momento >= p_desde and fi.momento < p_hasta
+      and (p_persona is null or fi.mecanico_id = p_persona)
+  ), pares as (
+    select mecanico_id, nombre, d, tipo, momento,
+           lead(momento) over (partition by mecanico_id, d order by momento) as siguiente,
+           lead(tipo) over (partition by mecanico_id, d order by momento) as tipo_siguiente
+    from f
+  )
+  select nombre, mecanico_id, d,
+         min(momento) filter (where tipo = 'entrada'),
+         max(momento) filter (where tipo = 'fin'),
+         coalesce(sum(extract(epoch from siguiente - momento))
+                  filter (where tipo in ('entrada','vuelta') and siguiente is not null), 0),
+         coalesce(sum(extract(epoch from siguiente - momento))
+                  filter (where tipo = 'descanso' and siguiente is not null), 0)
+  from pares
+  group by mecanico_id, nombre, d
+  order by d desc, nombre;
 end $$;
 
 -- ─────────────── Histórico ───────────────
