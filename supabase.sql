@@ -33,6 +33,7 @@ create table if not exists public.perfiles(
   nombre text not null,
   usuario text not null unique,
   rol text not null check (rol in ('admin','oficina','mecanico')),
+  centro_id bigint,
   activo boolean not null default true,
   creado timestamptz not null default now());
 
@@ -42,6 +43,13 @@ begin
   alter table public.perfiles add constraint perfiles_rol_check check (rol in ('admin','oficina','mecanico'));
 end $$;
 
+create table if not exists public.centros(
+  id bigint generated always as identity primary key,
+  taller_id bigint not null references public.talleres(id),
+  nombre text not null,
+  direccion text,
+  creado timestamptz not null default now());
+
 create table if not exists public.clientes(
   id bigint generated always as identity primary key,
   taller_id bigint not null references public.talleres(id),
@@ -49,6 +57,11 @@ create table if not exists public.clientes(
   telefono text, email text, dni text, notas text,
   creado timestamptz not null default now());
 create index if not exists ix_clientes on public.clientes(taller_id, nombre);
+
+alter table public.perfiles add column if not exists centro_id bigint references public.centros(id) on delete set null;
+do $$ begin
+  alter table public.perfiles add constraint perfiles_centro_fk foreign key (centro_id) references public.centros(id) on delete set null;
+exception when duplicate_object then null; when others then null; end $$;
 
 create table if not exists public.coches(
   id bigint generated always as identity primary key,
@@ -58,8 +71,10 @@ create table if not exists public.coches(
   carroceria text not null default 'berlina',
   km int, vin text, notas text,
   cliente_id bigint references public.clientes(id) on delete set null,
+  borrado timestamptz,
   creado timestamptz not null default now(),
   unique (taller_id, matricula));
+alter table public.coches add column if not exists borrado timestamptz;
 alter table public.coches add column if not exists cliente_id bigint references public.clientes(id) on delete set null;
 
 create table if not exists public.ordenes(
@@ -76,8 +91,12 @@ create table if not exists public.ordenes(
   seg_totales numeric not null default 0,      -- tiempo real total del coche
   fotos_informe jsonb not null default '[]'::jsonb,
   en_marcha_desde timestamptz,
+  centro_id bigint references public.centros(id) on delete set null,
+  borrado timestamptz,
   creado timestamptz not null default now(),
   cerrado timestamptz);
+alter table public.ordenes add column if not exists centro_id bigint references public.centros(id) on delete set null;
+alter table public.ordenes add column if not exists borrado timestamptz;
 alter table public.ordenes add column if not exists seg_consumidos numeric not null default 0;
 alter table public.ordenes add column if not exists seg_totales numeric not null default 0;
 alter table public.ordenes add column if not exists seg_tarea numeric not null default 0;
@@ -99,6 +118,29 @@ create table if not exists public.citas(
   orden_id bigint references public.ordenes(id) on delete set null,
   creado timestamptz not null default now());
 create index if not exists ix_citas on public.citas(taller_id, inicio);
+
+create table if not exists public.plantillas_ck(
+  id bigint generated always as identity primary key,
+  taller_id bigint not null references public.talleres(id),
+  nombre text not null,
+  momento text not null check (momento in ('inicial','final')),
+  items jsonb not null default '[]'::jsonb,
+  creado timestamptz not null default now());
+
+alter table public.ordenes add column if not exists ck_inicial_id bigint references public.plantillas_ck(id) on delete set null;
+alter table public.ordenes add column if not exists ck_final_id bigint references public.plantillas_ck(id) on delete set null;
+
+create table if not exists public.documentos(
+  id bigint generated always as identity primary key,
+  taller_id bigint not null references public.talleres(id),
+  orden_id bigint not null references public.ordenes(id) on delete cascade,
+  nombre text not null,
+  ruta text not null,
+  tipo text,
+  tamano int,
+  creado timestamptz not null default now(),
+  creado_por uuid references public.perfiles(id));
+create index if not exists ix_documentos on public.documentos(orden_id);
 
 create table if not exists public.checklists(
   orden_id bigint not null references public.ordenes(id) on delete cascade,
@@ -218,6 +260,33 @@ create table if not exists public.piezas(
   creado_por uuid references public.perfiles(id));
 create index if not exists ix_piezas on public.piezas(orden_id);
 
+create table if not exists public.trabajos_tipo(
+  id bigint generated always as identity primary key,
+  taller_id bigint not null references public.talleres(id),
+  nombre text not null,
+  tareas jsonb not null default '[]'::jsonb,
+  creado timestamptz not null default now());
+
+create table if not exists public.mensajes(
+  id bigint generated always as identity primary key,
+  taller_id bigint not null references public.talleres(id),
+  orden_id bigint not null references public.ordenes(id) on delete cascade,
+  autor_id uuid not null references public.perfiles(id),
+  texto text not null,
+  creado timestamptz not null default now());
+create index if not exists ix_mensajes on public.mensajes(orden_id, creado);
+
+create table if not exists public.ausencias(
+  id bigint generated always as identity primary key,
+  taller_id bigint not null references public.talleres(id),
+  persona_id uuid not null references public.perfiles(id),
+  tipo text not null check (tipo in ('vacaciones','baja','permiso')),
+  desde date not null,
+  hasta date not null check (hasta >= desde),
+  nota text,
+  creado timestamptz not null default now());
+create index if not exists ix_ausencias on public.ausencias(taller_id, desde);
+
 -- Un mecánico solo puede estar trabajando en un coche a la vez
 create unique index if not exists un_coche_a_la_vez on public.orden_sesiones(mecanico_id) where fin is null;
 create index if not exists ix_tareas_orden on public.tareas(orden_id);
@@ -326,6 +395,12 @@ alter table public.tarea_mecanicos enable row level security;
 alter table public.orden_sesiones  enable row level security;
 alter table public.avisos          enable row level security;
 alter table public.fichajes        enable row level security;
+alter table public.plantillas_ck   enable row level security;
+alter table public.documentos      enable row level security;
+alter table public.centros         enable row level security;
+alter table public.trabajos_tipo   enable row level security;
+alter table public.mensajes        enable row level security;
+alter table public.ausencias       enable row level security;
 alter table public.clientes        enable row level security;
 alter table public.citas           enable row level security;
 alter table public.piezas          enable row level security;
@@ -341,7 +416,7 @@ create policy leer on public.coches for select to authenticated
   using (taller_id = public.mi_taller() and (public.es_admin() or public.coche_mio(id)));
 drop policy if exists leer on public.ordenes;
 create policy leer on public.ordenes for select to authenticated
-  using (taller_id = public.mi_taller() and (public.es_admin() or public.orden_mia(id)));
+  using (taller_id = public.mi_taller() and (public.es_admin() or (public.orden_mia(id) and borrado is null)));
 drop policy if exists leer on public.checklists;
 create policy leer on public.checklists for select to authenticated
   using (taller_id = public.mi_taller() and (public.es_admin() or public.orden_mia(orden_id)));
@@ -351,6 +426,24 @@ create policy leer on public.tareas for select to authenticated
 drop policy if exists leer on public.tarea_mecanicos;
 create policy leer on public.tarea_mecanicos for select to authenticated
   using (taller_id = public.mi_taller() and (public.es_admin() or public.tarea_de_orden_mia(tarea_id)));
+drop policy if exists leer on public.plantillas_ck;
+create policy leer on public.plantillas_ck for select to authenticated using (taller_id = public.mi_taller());
+drop policy if exists leer on public.documentos;
+create policy leer on public.documentos for select to authenticated
+  using (taller_id = public.mi_taller() and (public.es_admin() or public.orden_mia(orden_id)));
+
+drop policy if exists leer on public.centros;
+create policy leer on public.centros for select to authenticated using (taller_id = public.mi_taller());
+drop policy if exists leer on public.trabajos_tipo;
+create policy leer on public.trabajos_tipo for select to authenticated
+  using (taller_id = public.mi_taller() and public.es_admin());
+drop policy if exists leer on public.mensajes;
+create policy leer on public.mensajes for select to authenticated
+  using (taller_id = public.mi_taller() and (public.es_admin() or public.orden_mia(orden_id)));
+drop policy if exists leer on public.ausencias;
+create policy leer on public.ausencias for select to authenticated
+  using (taller_id = public.mi_taller() and (public.es_admin() or persona_id = auth.uid()));
+
 drop policy if exists leer on public.clientes;
 create policy leer on public.clientes for select to authenticated
   using (taller_id = public.mi_taller() and public.es_admin());
@@ -424,7 +517,7 @@ exception when unique_violation then
 end $$;
 
 create or replace function public.editar_usuario(p_id uuid, p_nombre text, p_activo boolean,
-        p_password text default null, p_rol text default null)
+        p_password text default null, p_rol text default null, p_centro bigint default null)
 returns void language plpgsql security definer set search_path = public, extensions as $$
 declare t bigint := public._admin();
 begin
@@ -436,7 +529,8 @@ begin
             where tm.mecanico_id = p_id and o.estado = 'abierta' and ta.estado <> 'finalizada'
               and coalesce(p_rol, 'mecanico') <> 'mecanico') then
     raise exception 'Ese mecánico tiene reparaciones abiertas. Reasígnalas antes de pasarlo a oficina'; end if;
-  update perfiles set nombre = trim(p_nombre), activo = p_activo, rol = coalesce(p_rol, rol)
+  update perfiles set nombre = trim(p_nombre), activo = p_activo, rol = coalesce(p_rol, rol),
+                      centro_id = case when p_centro = 0 then null else coalesce(p_centro, centro_id) end
    where id = p_id and taller_id = t and rol in ('mecanico','oficina');
   if not found then raise exception 'Persona no encontrada'; end if;
   if coalesce(p_password, '') <> '' then
@@ -650,8 +744,10 @@ begin
   else
     v_coche := public.guardar_coche(null, p->'coche');
   end if;
-  insert into ordenes(taller_id, coche_id, tipo_revision, tipo_checklist, notas)
-  values (t, v_coche, trim(p->>'tipo_revision'), coalesce(p->>'tipo_checklist','completo'), nullif(trim(p->>'notas'),''))
+  insert into ordenes(taller_id, coche_id, tipo_revision, tipo_checklist, notas, centro_id, ck_inicial_id, ck_final_id)
+  values (t, v_coche, trim(p->>'tipo_revision'), coalesce(p->>'tipo_checklist','completo'),
+          nullif(trim(p->>'notas'),''), nullif(p->>'centro_id','')::bigint,
+          nullif(p->>'ck_inicial_id','')::bigint, nullif(p->>'ck_final_id','')::bigint)
   returning id into v_orden;
   for x in select * from jsonb_array_elements(p->'tareas') loop
     perform public.guardar_tarea(null, v_orden, x->>'titulo', x->>'descripcion', (x->>'minutos')::numeric,
@@ -660,12 +756,14 @@ begin
   return v_orden;
 end $$;
 
-create or replace function public.editar_orden(p_id bigint, p_tipo text, p_notas text) returns void
+create or replace function public.editar_orden(p_id bigint, p_tipo text, p_notas text,
+        p_centro bigint default null) returns void
 language plpgsql security definer set search_path = public as $$
 declare t bigint := public._admin();
 begin
   if coalesce(trim(p_tipo),'') = '' then raise exception 'Indica el tipo de revisión'; end if;
-  update ordenes set tipo_revision = trim(p_tipo), notas = nullif(trim(p_notas),'')
+  update ordenes set tipo_revision = trim(p_tipo), notas = nullif(trim(p_notas),''),
+                     centro_id = coalesce(p_centro, centro_id)
    where id = p_id and taller_id = t;
   if not found then raise exception 'Orden no encontrada'; end if;
 end $$;
@@ -692,11 +790,24 @@ begin
 end $$;
 
 -- ─────────────── Checklist ───────────────
-create or replace function public._validar_checklist(p_tipo text, p jsonb) returns jsonb
+create or replace function public.items_checklist(p_orden bigint, p_tipo text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare v_id bigint; v_items jsonb;
+begin
+  select case when p_tipo = 'final' then ck_final_id else ck_inicial_id end into v_id
+  from ordenes where id = p_orden;
+  if v_id is not null then
+    select items into v_items from plantillas_ck where id = v_id;
+    if v_items is not null and jsonb_array_length(v_items) > 0 then return v_items; end if;
+  end if;
+  return public.plantillas()->(case when p_tipo = 'final' then 'final' else 'inicial' end);
+end $$;
+
+create or replace function public._validar_checklist(p_items jsonb, p jsonb) returns jsonb
 language plpgsql immutable as $$
 declare it jsonb; v jsonb; items jsonb := '{}'::jsonb;
 begin
-  for it in select * from jsonb_array_elements(public.plantillas()->p_tipo) loop
+  for it in select * from jsonb_array_elements(p_items) loop
     v := p->'items'->(it->>'id');
     if v is null or coalesce(v->>'estado','') not in ('ok','revisar','na') then
       raise exception 'Falta revisar: %', it->>'texto'; end if;
@@ -712,6 +823,7 @@ begin
     'observaciones', left(trim(coalesce(p->>'observaciones','')), 1000));
 end $$;
 
+drop function if exists public._validar_checklist(text, jsonb);
 drop function if exists public.hacer_checklist(bigint, jsonb);
 drop function if exists public.modificar_checklist(bigint, jsonb);
 
@@ -736,8 +848,7 @@ begin
         where orden_id = p_orden and mecanico_id = yo.id and fin is null) then
       raise exception 'Primero tienes que empezar el trabajo'; end if;
   end if;
-  v_plantilla := case when p_tipo = 'final' then 'final' else o.tipo_checklist end;
-  d := public._validar_checklist(v_plantilla, p_datos);
+  d := public._validar_checklist(public.items_checklist(o.id, p_tipo), p_datos);
   insert into checklists(orden_id, tipo, taller_id, realizado_por, datos)
   values (p_orden, p_tipo, yo.taller_id, yo.id, d);
   if p_tipo = 'inicial' and d->>'km' is not null then
@@ -752,8 +863,7 @@ begin
   if p_tipo not in ('inicial','final') then raise exception 'Tipo de checklist no válido'; end if;
   select tipo_checklist into v_tipo from ordenes where id = p_orden and taller_id = t;
   if v_tipo is null then raise exception 'Orden no encontrada'; end if;
-  v_plantilla := case when p_tipo = 'final' then 'final' else v_tipo end;
-  update checklists set datos = public._validar_checklist(v_plantilla, p_datos),
+  update checklists set datos = public._validar_checklist(public.items_checklist(p_orden, p_tipo), p_datos),
                         modificado = now(), modificado_por = auth.uid()
    where orden_id = p_orden and tipo = p_tipo;
   if not found then raise exception 'Esa orden aún no tiene ese checklist'; end if;
@@ -944,7 +1054,7 @@ create or replace function public.borrar_orden(p_id bigint) returns void
 language plpgsql security definer set search_path = public as $$
 declare t bigint := public._admin();
 begin
-  delete from ordenes where id = p_id and taller_id = t;
+  update ordenes set borrado = now() where id = p_id and taller_id = t and borrado is null;
   if not found then raise exception 'Orden no encontrada'; end if;
 end $$;
 
@@ -952,11 +1062,53 @@ create or replace function public.borrar_coche(p_id bigint) returns void
 language plpgsql security definer set search_path = public as $$
 declare t bigint := public._admin();
 begin
-  if exists(select 1 from ordenes where coche_id = p_id) then
+  if exists(select 1 from ordenes where coche_id = p_id and borrado is null) then
     raise exception 'Ese coche tiene órdenes. Bórralas antes o deja el coche como está'; end if;
-  delete from coches where id = p_id and taller_id = t;
+  update coches set borrado = now() where id = p_id and taller_id = t and borrado is null;
   if not found then raise exception 'Coche no encontrado'; end if;
 end $$;
+
+create or replace function public.papelera() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  return jsonb_build_object(
+    'ordenes', (select coalesce(jsonb_agg(x), '[]'::jsonb) from (
+        select jsonb_build_object('id', o.id, 'borrado', o.borrado, 'matricula', c.matricula,
+                 'tipo', o.tipo_revision, 'creado', o.creado) as x
+        from ordenes o join coches c on c.id = o.coche_id
+        where o.taller_id = t and o.borrado is not null order by o.borrado desc) a),
+    'coches', (select coalesce(jsonb_agg(x), '[]'::jsonb) from (
+        select jsonb_build_object('id', c.id, 'borrado', c.borrado, 'matricula', c.matricula,
+                 'marca', c.marca, 'modelo', c.modelo) as x
+        from coches c where c.taller_id = t and c.borrado is not null order by c.borrado desc) b));
+end $$;
+
+create or replace function public.restaurar(p_que text, p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  if p_que = 'orden' then
+    update ordenes set borrado = null where id = p_id and taller_id = t;
+  elsif p_que = 'coche' then
+    update coches set borrado = null where id = p_id and taller_id = t;
+  else raise exception 'No se puede restaurar eso'; end if;
+  if not found then raise exception 'No encontrado'; end if;
+end $$;
+
+create or replace function public.vaciar_papelera(p_todo boolean default false) returns int
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin(); n int;
+        limite timestamptz := case when p_todo then now() else now() - interval '30 days' end;
+begin
+  delete from ordenes where taller_id = t and borrado is not null and borrado < limite;
+  get diagnostics n = row_count;
+  delete from coches where taller_id = t and borrado is not null and borrado < limite
+    and not exists(select 1 from ordenes o where o.coche_id = coches.id);
+  return n;
+end $$;
+
+
 
 -- ─────────────── Turnos ───────────────
 create or replace function public.guardar_plantilla_turno(p_id bigint, p_nombre text,
@@ -998,6 +1150,9 @@ begin
   if exists(select 1 from turnos where mecanico_id = p_mecanico and (p_id is null or id <> p_id)
             and inicio < p_fin and fin > p_inicio) then
     raise exception '% ya tiene otro turno a esa hora', v_nombre; end if;
+  if exists(select 1 from ausencias a where a.persona_id = p_mecanico
+            and (p_inicio at time zone current_setting('TimeZone'))::date between a.desde and a.hasta) then
+    raise exception '% está ausente ese día', v_nombre; end if;
   if p_id is null then
     insert into turnos(taller_id, mecanico_id, inicio, fin, comentario)
     values (t, p_mecanico, p_inicio, p_fin, nullif(trim(coalesce(p_comentario,'')),'')) returning id into v_id;
@@ -1036,7 +1191,7 @@ begin
                    where ta.orden_id = o.id), 'sin asignar'),
          o.tipo_revision
   from ordenes o join coches c on c.id = o.coche_id
-  where o.taller_id = yo.taller_id and o.estado = 'abierta'
+  where o.taller_id = yo.taller_id and o.estado = 'abierta' and o.borrado is null
   order by c.matricula;
 end $$;
 
@@ -1191,15 +1346,253 @@ begin
    where taller_id = t and leido is null and (p_ids is null or id = any(p_ids));
 end $$;
 
+-- ─────────────── Centros, trabajos tipo, mensajes y ausencias ───────────────
+create or replace function public.guardar_centro(p_id bigint, p_nombre text, p_direccion text default null) returns bigint
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin(); v_id bigint;
+begin
+  if length(trim(coalesce(p_nombre,''))) < 2 then raise exception 'Ponle nombre al centro'; end if;
+  if p_id is null then
+    insert into centros(taller_id, nombre, direccion) values (t, trim(p_nombre), nullif(trim(coalesce(p_direccion,'')),''))
+    returning id into v_id;
+  else
+    update centros set nombre = trim(p_nombre), direccion = nullif(trim(coalesce(p_direccion,'')),'')
+     where id = p_id and taller_id = t returning id into v_id;
+    if v_id is null then raise exception 'Centro no encontrado'; end if;
+  end if;
+  return v_id;
+end $$;
+
+create or replace function public.borrar_centro(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  delete from centros where id = p_id and taller_id = t;
+  if not found then raise exception 'Centro no encontrado'; end if;
+end $$;
+
+create or replace function public.guardar_trabajo_tipo(p_id bigint, p_nombre text, p_tareas jsonb) returns bigint
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin(); v_id bigint;
+begin
+  if length(trim(coalesce(p_nombre,''))) < 2 then raise exception 'Ponle nombre al trabajo tipo'; end if;
+  if jsonb_typeof(p_tareas) <> 'array' or jsonb_array_length(p_tareas) = 0 then
+    raise exception 'Añade al menos una reparación'; end if;
+  if p_id is null then
+    insert into trabajos_tipo(taller_id, nombre, tareas) values (t, trim(p_nombre), p_tareas) returning id into v_id;
+  else
+    update trabajos_tipo set nombre = trim(p_nombre), tareas = p_tareas
+     where id = p_id and taller_id = t returning id into v_id;
+    if v_id is null then raise exception 'Trabajo tipo no encontrado'; end if;
+  end if;
+  return v_id;
+end $$;
+
+create or replace function public.borrar_trabajo_tipo(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  delete from trabajos_tipo where id = p_id and taller_id = t;
+  if not found then raise exception 'Trabajo tipo no encontrado'; end if;
+end $$;
+
+create or replace function public.crear_mensaje(p_orden bigint, p_texto text) returns bigint
+language plpgsql security definer set search_path = public as $$
+declare yo perfiles := public._yo(); v_id bigint;
+begin
+  if length(trim(coalesce(p_texto,''))) < 1 then raise exception 'Escribe el mensaje'; end if;
+  if not exists(select 1 from ordenes where id = p_orden and taller_id = yo.taller_id and borrado is null) then
+    raise exception 'Orden no encontrada'; end if;
+  if yo.rol = 'mecanico' and not public.orden_mia(p_orden) then
+    raise exception 'Este coche no está asignado a ti'; end if;
+  insert into mensajes(taller_id, orden_id, autor_id, texto)
+  values (yo.taller_id, p_orden, yo.id, trim(p_texto)) returning id into v_id;
+  if yo.rol = 'mecanico' then
+    insert into avisos(taller_id, orden_id, mecanico_id, tipo, texto)
+    values (yo.taller_id, p_orden, yo.id, 'nota', trim(p_texto));
+  end if;
+  return v_id;
+end $$;
+
+create or replace function public.guardar_ausencia(p_id bigint, p_persona uuid, p_tipo text,
+        p_desde date, p_hasta date, p_nota text default null) returns bigint
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin(); v_id bigint;
+begin
+  if p_tipo not in ('vacaciones','baja','permiso') then raise exception 'Tipo de ausencia no válido'; end if;
+  if p_hasta < p_desde then raise exception 'La fecha de fin es anterior a la de inicio'; end if;
+  if not exists(select 1 from perfiles where id = p_persona and taller_id = t and rol in ('mecanico','oficina')) then
+    raise exception 'Esa persona no es de este taller'; end if;
+  if p_id is null then
+    insert into ausencias(taller_id, persona_id, tipo, desde, hasta, nota)
+    values (t, p_persona, p_tipo, p_desde, p_hasta, nullif(trim(coalesce(p_nota,'')),'')) returning id into v_id;
+  else
+    update ausencias set persona_id = p_persona, tipo = p_tipo, desde = p_desde, hasta = p_hasta,
+                         nota = nullif(trim(coalesce(p_nota,'')),'')
+     where id = p_id and taller_id = t returning id into v_id;
+    if v_id is null then raise exception 'Ausencia no encontrada'; end if;
+  end if;
+  return v_id;
+end $$;
+
+create or replace function public.borrar_ausencia(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  delete from ausencias where id = p_id and taller_id = t;
+  if not found then raise exception 'Ausencia no encontrada'; end if;
+end $$;
+
+-- ─────────────── Baremo propio y carga de trabajo ───────────────
+create or replace function public.baremo() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  return coalesce((select jsonb_agg(x order by x->>'titulo') from (
+    select jsonb_build_object('titulo', ta.titulo, 'veces', count(*),
+             'minutos', round(avg(ta.seg_reales) / 60.0),
+             'minutos_asignados', round(avg(ta.seg_asignados) / 60.0)) as x
+    from tareas ta join ordenes o on o.id = ta.orden_id
+    where o.taller_id = t and ta.estado = 'finalizada' and ta.seg_reales is not null and o.borrado is null
+    group by ta.titulo
+    having count(*) >= 1
+    order by count(*) desc limit 200) z), '[]'::jsonb);
+end $$;
+
+create or replace function public.carga(p_desde timestamptz, p_hasta timestamptz) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare t bigint := public._admin(); v_pend numeric; v_disp numeric;
+begin
+  select coalesce(sum(ta.seg_asignados), 0) into v_pend
+  from tareas ta join ordenes o on o.id = ta.orden_id
+  where o.taller_id = t and o.estado = 'abierta' and o.borrado is null and ta.estado <> 'finalizada';
+  select coalesce(sum(extract(epoch from (least(tu.fin, p_hasta) - greatest(tu.inicio, p_desde)))), 0) into v_disp
+  from turnos tu join perfiles u on u.id = tu.mecanico_id
+  where tu.taller_id = t and u.rol = 'mecanico' and u.activo
+    and tu.inicio < p_hasta and tu.fin > p_desde
+    and not exists(select 1 from ausencias a where a.persona_id = tu.mecanico_id
+                   and (tu.inicio at time zone current_setting('TimeZone'))::date between a.desde and a.hasta);
+  return jsonb_build_object('pendiente', v_pend, 'disponible', v_disp,
+    'citas', (select count(*) from citas where taller_id = t and estado = 'prevista'
+              and inicio >= p_desde and inicio < p_hasta));
+end $$;
+
+-- ─────────────── Plantillas de checklist, documentos, estadísticas y copia ───────────────
+create or replace function public.guardar_plantilla_ck(p_id bigint, p_nombre text, p_momento text, p_items jsonb) returns bigint
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin(); v_id bigint; v_items jsonb := '[]'::jsonb; it jsonb; n int := 0;
+begin
+  if length(trim(coalesce(p_nombre,''))) < 2 then raise exception 'Ponle nombre al checklist'; end if;
+  if p_momento not in ('inicial','final') then raise exception 'Momento no válido'; end if;
+  if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'Añade al menos un punto'; end if;
+  for it in select * from jsonb_array_elements(p_items) loop
+    n := n + 1;
+    if length(trim(coalesce(it->>'texto',''))) < 2 then raise exception 'Hay un punto sin texto'; end if;
+    v_items := v_items || jsonb_build_array(jsonb_build_object(
+      'id', coalesce(nullif(trim(coalesce(it->>'id','')),''), 'p' || n),
+      'texto', left(trim(it->>'texto'), 120)));
+  end loop;
+  if p_id is null then
+    insert into plantillas_ck(taller_id, nombre, momento, items) values (t, trim(p_nombre), p_momento, v_items)
+    returning id into v_id;
+  else
+    update plantillas_ck set nombre = trim(p_nombre), momento = p_momento, items = v_items
+     where id = p_id and taller_id = t returning id into v_id;
+    if v_id is null then raise exception 'Checklist no encontrado'; end if;
+  end if;
+  return v_id;
+end $$;
+
+create or replace function public.borrar_plantilla_ck(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  delete from plantillas_ck where id = p_id and taller_id = t;
+  if not found then raise exception 'Checklist no encontrado'; end if;
+end $$;
+
+create or replace function public.guardar_documento(p_orden bigint, p_nombre text, p_ruta text,
+        p_tipo text default null, p_tamano int default null) returns bigint
+language plpgsql security definer set search_path = public as $$
+declare yo perfiles := public._yo(); v_id bigint;
+begin
+  if not exists(select 1 from ordenes where id = p_orden and taller_id = yo.taller_id and borrado is null) then
+    raise exception 'Orden no encontrada'; end if;
+  if yo.rol = 'mecanico' and not public.orden_mia(p_orden) then
+    raise exception 'Este coche no está asignado a ti'; end if;
+  insert into documentos(taller_id, orden_id, nombre, ruta, tipo, tamano, creado_por)
+  values (yo.taller_id, p_orden, left(trim(p_nombre), 120), p_ruta, p_tipo, p_tamano, yo.id)
+  returning id into v_id;
+  return v_id;
+end $$;
+
+create or replace function public.borrar_documento(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  delete from documentos where id = p_id and taller_id = t;
+  if not found then raise exception 'Documento no encontrado'; end if;
+end $$;
+
+create or replace function public.estadisticas(p_meses int default 6) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare t bigint := public._admin(); desde timestamptz := date_trunc('month', now()) - make_interval(months => greatest(p_meses, 1) - 1);
+begin
+  return jsonb_build_object(
+    'meses', (select coalesce(jsonb_agg(x order by x->>'mes'), '[]'::jsonb) from (
+        select jsonb_build_object('mes', to_char(date_trunc('month', ta.finalizada), 'YYYY-MM'),
+                 'reparaciones', count(*),
+                 'asignado', coalesce(sum(ta.seg_asignados), 0),
+                 'real', coalesce(sum(ta.seg_reales), 0)) as x
+        from tareas ta join ordenes o on o.id = ta.orden_id
+        where o.taller_id = t and o.borrado is null and ta.estado = 'finalizada' and ta.finalizada >= desde
+        group by date_trunc('month', ta.finalizada)) a),
+    'personas', (select coalesce(jsonb_agg(x), '[]'::jsonb) from (
+        select jsonb_build_object('nombre', u.nombre, 'mes', to_char(date_trunc('month', ta.finalizada), 'YYYY-MM'),
+                 'reparaciones', count(*),
+                 'asignado', coalesce(sum(ta.seg_asignados), 0),
+                 'real', coalesce(sum(ta.seg_reales), 0)) as x
+        from tareas ta join ordenes o on o.id = ta.orden_id join perfiles u on u.id = ta.finalizada_por
+        where o.taller_id = t and o.borrado is null and ta.estado = 'finalizada' and ta.finalizada >= desde
+        group by u.nombre, date_trunc('month', ta.finalizada)
+        order by u.nombre, date_trunc('month', ta.finalizada)) b));
+end $$;
+
+create or replace function public.exportar() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  return jsonb_build_object(
+    'generado', now(), 'version', 1,
+    'taller', (select to_jsonb(x) - 'logo' from talleres x where id = t),
+    'personal', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from perfiles x where taller_id = t),
+    'centros', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from centros x where taller_id = t),
+    'clientes', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from clientes x where taller_id = t),
+    'coches', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from coches x where taller_id = t),
+    'citas', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from citas x where taller_id = t),
+    'ordenes', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from ordenes x where taller_id = t),
+    'tareas', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from tareas x where taller_id = t),
+    'piezas', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from piezas x where taller_id = t),
+    'checklists', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from checklists x where taller_id = t),
+    'documentos', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from documentos x where taller_id = t),
+    'mensajes', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from mensajes x where taller_id = t),
+    'avisos', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from avisos x where taller_id = t),
+    'turnos', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from turnos x where taller_id = t),
+    'ausencias', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from ausencias x where taller_id = t),
+    'fichajes', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from fichajes x where taller_id = t),
+    'sesiones_trabajo', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from orden_sesiones x where taller_id = t));
+end $$;
+
 -- ─────────────── Panel, buscador y jornada ───────────────
 create or replace function public.panel() returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare t bigint := public._admin(); mes timestamptz := date_trunc('month', now());
 begin
   return jsonb_build_object(
-    'abiertas', (select count(*) from ordenes where taller_id = t and estado = 'abierta'),
-    'en_marcha', (select count(*) from ordenes where taller_id = t and en_marcha_desde is not null),
-    'sin_checklist', (select count(*) from ordenes o where o.taller_id = t and o.estado = 'abierta'
+    'abiertas', (select count(*) from ordenes where taller_id = t and estado = 'abierta' and borrado is null),
+    'en_marcha', (select count(*) from ordenes where taller_id = t and en_marcha_desde is not null and borrado is null),
+    'sin_checklist', (select count(*) from ordenes o where o.taller_id = t and o.estado = 'abierta' and o.borrado is null
                       and not exists(select 1 from checklists k where k.orden_id = o.id and k.tipo = 'inicial')),
     'avisos', (select count(*) from avisos where taller_id = t and leido is null),
     'citas_hoy', (select count(*) from citas where taller_id = t and estado = 'prevista'
@@ -1212,7 +1605,7 @@ begin
             / 3600.0 * coalesce((select precio_hora from talleres where id = t), 0)
           + (select coalesce(sum(pz.cantidad * coalesce(pz.precio, 0)), 0) from piezas pz where pz.orden_id = o.id)
         ), 0)::numeric, 2)
-        from ordenes o where o.taller_id = t and o.estado = 'finalizada' and o.cerrado >= mes),
+        from ordenes o where o.taller_id = t and o.estado = 'finalizada' and o.cerrado >= mes and o.borrado is null),
     'mecanicos', (select coalesce(jsonb_agg(x order by x->>'nombre'), '[]'::jsonb) from (
         select jsonb_build_object('nombre', u.nombre,
                  'hechas', count(ta.id),
@@ -1239,7 +1632,7 @@ begin
         select jsonb_build_object('id', c.id, 'matricula', c.matricula, 'marca', c.marca, 'modelo', c.modelo,
                  'cliente', cl.nombre) as x
         from coches c left join clientes cl on cl.id = c.cliente_id
-        where c.taller_id = t and (c.matricula like qm or c.marca ilike q or c.modelo ilike q
+        where c.taller_id = t and c.borrado is null and (c.matricula like qm or c.marca ilike q or c.modelo ilike q
                                    or c.vin ilike q or cl.nombre ilike q)
         order by c.matricula limit 20) a),
     'clientes', (select coalesce(jsonb_agg(x), '[]'::jsonb) from (
@@ -1252,7 +1645,7 @@ begin
         select jsonb_build_object('id', o.id, 'matricula', c.matricula, 'tipo', o.tipo_revision,
                  'estado', o.estado, 'creado', o.creado) as x
         from ordenes o join coches c on c.id = o.coche_id
-        where o.taller_id = t and (c.matricula like qm or o.tipo_revision ilike q
+        where o.taller_id = t and o.borrado is null and (c.matricula like qm or o.tipo_revision ilike q
               or o.id::text = trim(coalesce(p_texto,'')))
         order by o.creado desc limit 20) d));
 end $$;
@@ -1348,4 +1741,4 @@ begin
 end $$;
 
 -- Las funciones internas no se pueden llamar desde la app
-revoke execute on function public._yo(), public._admin(), public._validar_checklist(text, jsonb) from public, anon, authenticated;
+revoke execute on function public._yo(), public._admin(), public._validar_checklist(jsonb, jsonb) from public, anon, authenticated;
