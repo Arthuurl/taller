@@ -55,8 +55,13 @@ create table if not exists public.clientes(
   taller_id bigint not null references public.talleres(id),
   nombre text not null,
   telefono text, email text, dni text, notas text,
+  direccion text, cp text, poblacion text, provincia text,
   creado timestamptz not null default now());
 create index if not exists ix_clientes on public.clientes(taller_id, nombre);
+alter table public.clientes add column if not exists direccion text;
+alter table public.clientes add column if not exists cp text;
+alter table public.clientes add column if not exists poblacion text;
+alter table public.clientes add column if not exists provincia text;
 
 alter table public.perfiles add column if not exists centro_id bigint references public.centros(id) on delete set null;
 do $$ begin
@@ -70,11 +75,25 @@ create table if not exists public.coches(
   anio int, color text not null default '#3A6EA5',
   carroceria text not null default 'berlina',
   km int, vin text, notas text,
+  combustible text, matriculacion date, distintivo text, itv_hasta date, itv_aviso timestamptz,
   cliente_id bigint references public.clientes(id) on delete set null,
   borrado timestamptz,
   creado timestamptz not null default now(),
   unique (taller_id, matricula));
 alter table public.coches add column if not exists borrado timestamptz;
+alter table public.coches add column if not exists combustible text;
+alter table public.coches add column if not exists matriculacion date;
+alter table public.coches add column if not exists distintivo text;
+alter table public.coches add column if not exists itv_hasta date;
+alter table public.coches add column if not exists itv_aviso timestamptz;
+do $$ begin
+  alter table public.coches drop constraint if exists coches_combustible_check;
+  alter table public.coches add constraint coches_combustible_check check (combustible is null or combustible in
+    ('gasolina','diesel','hibrido','phev','phev40','electrico','hidrogeno','glp','gnc'));
+  alter table public.coches drop constraint if exists coches_distintivo_check;
+  alter table public.coches add constraint coches_distintivo_check check (distintivo is null or distintivo in
+    ('0','ECO','C','B','sin'));
+exception when others then null; end $$;
 alter table public.coches add column if not exists cliente_id bigint references public.clientes(id) on delete set null;
 
 create table if not exists public.ordenes(
@@ -97,6 +116,52 @@ create table if not exists public.ordenes(
   cerrado timestamptz);
 alter table public.ordenes add column if not exists centro_id bigint references public.centros(id) on delete set null;
 alter table public.ordenes add column if not exists borrado timestamptz;
+alter table public.ordenes add column if not exists numero int;
+alter table public.ordenes add column if not exists fase text not null default 'reparacion';
+do $$ begin
+  alter table public.ordenes add constraint ordenes_numero_unico unique (taller_id, numero);
+exception when duplicate_table then null; when duplicate_object then null; end $$;
+do $$ begin
+  alter table public.ordenes drop constraint if exists ordenes_fase_check;
+  alter table public.ordenes add constraint ordenes_fase_check check (fase in ('recepcion','presupuesto','reparacion'));
+exception when others then null; end $$;
+
+create table if not exists public.contadores(
+  taller_id bigint not null references public.talleres(id),
+  clave text not null,
+  valor int not null default 0,
+  primary key (taller_id, clave));
+
+create table if not exists public.presupuestos(
+  id bigint generated always as identity primary key,
+  taller_id bigint not null references public.talleres(id),
+  orden_id bigint not null references public.ordenes(id) on delete cascade,
+  numero int not null,
+  estado text not null default 'borrador' check (estado in ('borrador','enviado','aceptado','rechazado')),
+  lineas jsonb not null default '[]'::jsonb,
+  importe_obra numeric not null default 0,
+  importe_piezas numeric not null default 0,
+  base numeric not null default 0,
+  iva numeric not null default 0,
+  total numeric not null default 0,
+  validez_dias int not null default 15,
+  notas text,
+  creado timestamptz not null default now(),
+  decidido timestamptz,
+  unique (taller_id, numero));
+create index if not exists ix_presupuestos on public.presupuestos(orden_id);
+
+create table if not exists public.reparaciones(
+  id bigint generated always as identity primary key,
+  taller_id bigint not null references public.talleres(id),
+  orden_id bigint not null references public.ordenes(id) on delete cascade,
+  presupuesto_id bigint references public.presupuestos(id) on delete set null,
+  numero int not null,
+  notas text,
+  creado timestamptz not null default now(),
+  cerrado timestamptz,
+  unique (taller_id, numero));
+create index if not exists ix_reparaciones on public.reparaciones(orden_id);
 alter table public.ordenes add column if not exists seg_consumidos numeric not null default 0;
 alter table public.ordenes add column if not exists seg_totales numeric not null default 0;
 alter table public.ordenes add column if not exists seg_tarea numeric not null default 0;
@@ -118,6 +183,18 @@ create table if not exists public.citas(
   orden_id bigint references public.ordenes(id) on delete set null,
   creado timestamptz not null default now());
 create index if not exists ix_citas on public.citas(taller_id, inicio);
+
+create table if not exists public.firmas(
+  id bigint generated always as identity primary key,
+  taller_id bigint not null references public.talleres(id),
+  orden_id bigint not null references public.ordenes(id) on delete cascade,
+  tipo text not null check (tipo in ('recepcion','presupuesto','entrega')),
+  imagen text not null,
+  firmante text,
+  dni text,
+  creado timestamptz not null default now(),
+  recogida_por uuid references public.perfiles(id),
+  unique (orden_id, tipo));
 
 create table if not exists public.plantillas_ck(
   id bigint generated always as identity primary key,
@@ -395,6 +472,10 @@ alter table public.tarea_mecanicos enable row level security;
 alter table public.orden_sesiones  enable row level security;
 alter table public.avisos          enable row level security;
 alter table public.fichajes        enable row level security;
+alter table public.firmas          enable row level security;
+alter table public.contadores      enable row level security;
+alter table public.presupuestos    enable row level security;
+alter table public.reparaciones    enable row level security;
 alter table public.plantillas_ck   enable row level security;
 alter table public.documentos      enable row level security;
 alter table public.centros         enable row level security;
@@ -426,6 +507,17 @@ create policy leer on public.tareas for select to authenticated
 drop policy if exists leer on public.tarea_mecanicos;
 create policy leer on public.tarea_mecanicos for select to authenticated
   using (taller_id = public.mi_taller() and (public.es_admin() or public.tarea_de_orden_mia(tarea_id)));
+drop policy if exists leer on public.firmas;
+create policy leer on public.firmas for select to authenticated
+  using (taller_id = public.mi_taller() and (public.es_admin() or public.orden_mia(orden_id)));
+
+drop policy if exists leer on public.presupuestos;
+create policy leer on public.presupuestos for select to authenticated
+  using (taller_id = public.mi_taller() and public.es_admin());
+drop policy if exists leer on public.reparaciones;
+create policy leer on public.reparaciones for select to authenticated
+  using (taller_id = public.mi_taller() and (public.es_admin() or public.orden_mia(orden_id)));
+
 drop policy if exists leer on public.plantillas_ck;
 create policy leer on public.plantillas_ck for select to authenticated using (taller_id = public.mi_taller());
 drop policy if exists leer on public.documentos;
@@ -595,21 +687,30 @@ exception when others then
 end $$;
 
 -- ─────────────── Clientes y citas ───────────────
+drop function if exists public.guardar_cliente(bigint, text, text, text, text, text);
+
 create or replace function public.guardar_cliente(p_id bigint, p_nombre text, p_telefono text default null,
-        p_email text default null, p_dni text default null, p_notas text default null) returns bigint
+        p_email text default null, p_dni text default null, p_notas text default null,
+        p_direccion text default null, p_cp text default null, p_poblacion text default null,
+        p_provincia text default null) returns bigint
 language plpgsql security definer set search_path = public as $$
 declare t bigint := public._admin(); v_id bigint;
 begin
   if length(trim(coalesce(p_nombre,''))) < 2 then raise exception 'Escribe el nombre del cliente'; end if;
   if p_id is null then
-    insert into clientes(taller_id, nombre, telefono, email, dni, notas)
+    insert into clientes(taller_id, nombre, telefono, email, dni, notas, direccion, cp, poblacion, provincia)
     values (t, trim(p_nombre), nullif(trim(coalesce(p_telefono,'')),''), nullif(trim(coalesce(p_email,'')),''),
-            nullif(upper(trim(coalesce(p_dni,''))),''), nullif(trim(coalesce(p_notas,'')),''))
+            nullif(upper(trim(coalesce(p_dni,''))),''), nullif(trim(coalesce(p_notas,'')),''),
+            nullif(trim(coalesce(p_direccion,'')),''), nullif(trim(coalesce(p_cp,'')),''),
+            nullif(trim(coalesce(p_poblacion,'')),''), nullif(trim(coalesce(p_provincia,'')),''))
     returning id into v_id;
   else
     update clientes set nombre = trim(p_nombre), telefono = nullif(trim(coalesce(p_telefono,'')),''),
                         email = nullif(trim(coalesce(p_email,'')),''), dni = nullif(upper(trim(coalesce(p_dni,''))),''),
-                        notas = nullif(trim(coalesce(p_notas,'')),'')
+                        notas = nullif(trim(coalesce(p_notas,'')),''),
+                        direccion = nullif(trim(coalesce(p_direccion,'')),''), cp = nullif(trim(coalesce(p_cp,'')),''),
+                        poblacion = nullif(trim(coalesce(p_poblacion,'')),''),
+                        provincia = nullif(trim(coalesce(p_provincia,'')),'')
      where id = p_id and taller_id = t returning id into v_id;
     if v_id is null then raise exception 'Cliente no encontrado'; end if;
   end if;
@@ -669,18 +770,23 @@ begin
     raise exception 'Tipo de carrocería no válido'; end if;
   if coalesce(p->>'color','#3A6EA5') !~ '^#[0-9a-fA-F]{6}$' then raise exception 'Color no válido'; end if;
   if p_id is null then
-    insert into coches(taller_id, matricula, marca, modelo, anio, color, carroceria, km, vin, notas, cliente_id)
+    insert into coches(taller_id, matricula, marca, modelo, anio, color, carroceria, km, vin, notas, cliente_id,
+                       combustible, matriculacion, distintivo, itv_hasta)
     values (t, v_mat, trim(p->>'marca'), trim(p->>'modelo'), nullif(p->>'anio','')::int,
             coalesce(p->>'color','#3A6EA5'), coalesce(p->>'carroceria','berlina'),
             nullif(p->>'km','')::numeric::int, nullif(trim(p->>'vin'),''), nullif(trim(p->>'notas'),''),
-            nullif(p->>'cliente_id','')::bigint)
+            nullif(p->>'cliente_id','')::bigint,
+            nullif(p->>'combustible',''), nullif(p->>'matriculacion','')::date, nullif(p->>'distintivo',''),
+            nullif(p->>'itv_hasta','')::date)
     returning id into v_id;
   else
     update coches set matricula = v_mat, marca = trim(p->>'marca'), modelo = trim(p->>'modelo'),
       anio = nullif(p->>'anio','')::int, color = coalesce(p->>'color','#3A6EA5'),
       carroceria = coalesce(p->>'carroceria','berlina'), km = nullif(p->>'km','')::numeric::int,
       vin = nullif(trim(p->>'vin'),''), notas = nullif(trim(p->>'notas'),''),
-      cliente_id = nullif(p->>'cliente_id','')::bigint
+      cliente_id = nullif(p->>'cliente_id','')::bigint,
+      combustible = nullif(p->>'combustible',''), matriculacion = nullif(p->>'matriculacion','')::date,
+      distintivo = nullif(p->>'distintivo',''), itv_hasta = nullif(p->>'itv_hasta','')::date
     where id = p_id and taller_id = t returning id into v_id;
     if v_id is null then raise exception 'Coche no encontrado'; end if;
   end if;
@@ -744,10 +850,12 @@ begin
   else
     v_coche := public.guardar_coche(null, p->'coche');
   end if;
-  insert into ordenes(taller_id, coche_id, tipo_revision, tipo_checklist, notas, centro_id, ck_inicial_id, ck_final_id)
+  insert into ordenes(taller_id, coche_id, tipo_revision, tipo_checklist, notas, centro_id,
+                      ck_inicial_id, ck_final_id, numero, fase)
   values (t, v_coche, trim(p->>'tipo_revision'), coalesce(p->>'tipo_checklist','completo'),
           nullif(trim(p->>'notas'),''), nullif(p->>'centro_id','')::bigint,
-          nullif(p->>'ck_inicial_id','')::bigint, nullif(p->>'ck_final_id','')::bigint)
+          nullif(p->>'ck_inicial_id','')::bigint, nullif(p->>'ck_final_id','')::bigint,
+          public.siguiente_numero(t, 'orden'), 'reparacion')
   returning id into v_orden;
   for x in select * from jsonb_array_elements(p->'tareas') loop
     perform public.guardar_tarea(null, v_orden, x->>'titulo', x->>'descripcion', (x->>'minutos')::numeric,
@@ -1584,6 +1692,266 @@ begin
     'sesiones_trabajo', (select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from orden_sesiones x where taller_id = t));
 end $$;
 
+-- ─────────────── Recepción, presupuesto y reparación ───────────────
+create or replace function public.siguiente_numero(p_taller bigint, p_clave text) returns int
+language plpgsql security definer set search_path = public as $$
+declare v int;
+begin
+  insert into contadores(taller_id, clave, valor) values (p_taller, p_clave, 1)
+  on conflict (taller_id, clave) do update set valor = contadores.valor + 1
+  returning valor into v;
+  return v;
+end $$;
+
+-- 1) RECEPCIÓN: cliente + coche + número de orden
+create or replace function public.crear_recepcion(p jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin(); v_cliente bigint; v_coche bigint; v_orden bigint; v_num int;
+begin
+  if coalesce(trim(p->>'tipo_revision'),'') = '' then raise exception 'Indica el motivo de la entrada'; end if;
+  -- cliente: el elegido, o uno nuevo con los datos que traiga
+  if nullif(p->>'cliente_id','') is not null then
+    select id into v_cliente from clientes where id = (p->>'cliente_id')::bigint and taller_id = t;
+    if v_cliente is null then raise exception 'Cliente no encontrado'; end if;
+  elsif p->'cliente' is not null and coalesce(trim(p->'cliente'->>'nombre'),'') <> '' then
+    v_cliente := public.guardar_cliente(null, p->'cliente'->>'nombre', p->'cliente'->>'telefono',
+      p->'cliente'->>'email', p->'cliente'->>'dni', p->'cliente'->>'notas', p->'cliente'->>'direccion',
+      p->'cliente'->>'cp', p->'cliente'->>'poblacion', p->'cliente'->>'provincia');
+  end if;
+  -- coche: el elegido, o uno nuevo
+  if nullif(p->>'coche_id','') is not null then
+    select id into v_coche from coches where id = (p->>'coche_id')::bigint and taller_id = t and borrado is null;
+    if v_coche is null then raise exception 'Coche no encontrado'; end if;
+    if v_cliente is not null then update coches set cliente_id = v_cliente where id = v_coche; end if;
+  else
+    v_coche := public.guardar_coche(null, coalesce(p->'coche','{}'::jsonb)
+      || jsonb_build_object('cliente_id', coalesce(v_cliente::text, '')));
+  end if;
+  v_num := public.siguiente_numero(t, 'orden');
+  insert into ordenes(taller_id, coche_id, tipo_revision, tipo_checklist, notas, centro_id,
+                      ck_inicial_id, ck_final_id, numero, fase)
+  values (t, v_coche, trim(p->>'tipo_revision'), coalesce(p->>'tipo_checklist','completo'),
+          nullif(trim(p->>'notas'),''), nullif(p->>'centro_id','')::bigint,
+          nullif(p->>'ck_inicial_id','')::bigint, nullif(p->>'ck_final_id','')::bigint, v_num, 'recepcion')
+  returning id into v_orden;
+  return jsonb_build_object('orden_id', v_orden, 'numero', v_num, 'coche_id', v_coche, 'cliente_id', v_cliente);
+end $$;
+
+-- 2) PRESUPUESTO: vinculado al número de orden
+create or replace function public.guardar_presupuesto(p_id bigint, p_orden bigint, p_lineas jsonb,
+        p_validez int default 15, p_notas text default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin(); v_id bigint; v_num int; l jsonb;
+        v_obra numeric := 0; v_piezas numeric := 0; v_base numeric; v_iva numeric; v_lineas jsonb := '[]'::jsonb;
+        v_tipo_iva numeric; v_precio_hora numeric; v_estado text;
+begin
+  if not exists(select 1 from ordenes where id = p_orden and taller_id = t and borrado is null) then
+    raise exception 'Orden no encontrada'; end if;
+  if jsonb_typeof(p_lineas) <> 'array' or jsonb_array_length(p_lineas) = 0 then
+    raise exception 'Añade al menos una línea al presupuesto'; end if;
+  select coalesce(iva, 21), coalesce(precio_hora, 0) into v_tipo_iva, v_precio_hora from talleres where id = t;
+  for l in select * from jsonb_array_elements(p_lineas) loop
+    if coalesce(trim(l->>'concepto'),'') = '' then raise exception 'Hay una línea sin concepto'; end if;
+    if coalesce(l->>'tipo','obra') not in ('obra','pieza') then raise exception 'Tipo de línea no válido'; end if;
+    declare v_cant numeric := coalesce((l->>'cantidad')::numeric, 1);
+            v_precio numeric := coalesce((l->>'precio')::numeric, 0);
+            v_imp numeric;
+    begin
+      if l->>'tipo' = 'obra' then
+        -- en mano de obra, la cantidad son minutos y el precio sale de la tarifa si no se indica otro
+        v_precio := case when (l->>'precio') is null then v_precio_hora else v_precio end;
+        v_imp := round(v_cant / 60.0 * v_precio, 2);
+        v_obra := v_obra + v_imp;
+      else
+        v_imp := round(v_cant * v_precio, 2);
+        v_piezas := v_piezas + v_imp;
+      end if;
+      v_lineas := v_lineas || jsonb_build_array(jsonb_build_object(
+        'tipo', coalesce(l->>'tipo','obra'), 'concepto', left(trim(l->>'concepto'), 160),
+        'referencia', nullif(trim(coalesce(l->>'referencia','')),''),
+        'cantidad', v_cant, 'precio', v_precio, 'importe', v_imp));
+    end;
+  end loop;
+  v_base := v_obra + v_piezas;
+  v_iva := round(v_base * v_tipo_iva / 100.0, 2);
+  if p_id is null then
+    v_num := public.siguiente_numero(t, 'presupuesto');
+    insert into presupuestos(taller_id, orden_id, numero, lineas, importe_obra, importe_piezas,
+                             base, iva, total, validez_dias, notas)
+    values (t, p_orden, v_num, v_lineas, v_obra, v_piezas, v_base, v_iva, v_base + v_iva,
+            coalesce(p_validez, 15), nullif(trim(coalesce(p_notas,'')),''))
+    returning id into v_id;
+    update ordenes set fase = 'presupuesto' where id = p_orden and fase = 'recepcion';
+  else
+    select estado into v_estado from presupuestos where id = p_id and taller_id = t;
+    if v_estado is null then raise exception 'Presupuesto no encontrado'; end if;
+    if v_estado = 'aceptado' then raise exception 'Un presupuesto aceptado ya no se puede cambiar'; end if;
+    update presupuestos set lineas = v_lineas, importe_obra = v_obra, importe_piezas = v_piezas,
+           base = v_base, iva = v_iva, total = v_base + v_iva, validez_dias = coalesce(p_validez, validez_dias),
+           notas = nullif(trim(coalesce(p_notas,'')),'')
+     where id = p_id and taller_id = t returning id, numero into v_id, v_num;
+  end if;
+  return jsonb_build_object('id', v_id, 'numero', v_num, 'base', v_base, 'iva', v_iva, 'total', v_base + v_iva);
+end $$;
+
+create or replace function public.decidir_presupuesto(p_id bigint, p_estado text) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  if p_estado not in ('borrador','enviado','aceptado','rechazado') then raise exception 'Estado no válido'; end if;
+  update presupuestos set estado = p_estado,
+         decidido = case when p_estado in ('aceptado','rechazado') then now() else null end
+   where id = p_id and taller_id = t;
+  if not found then raise exception 'Presupuesto no encontrado'; end if;
+end $$;
+
+create or replace function public.borrar_presupuesto(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  delete from presupuestos where id = p_id and taller_id = t and estado <> 'aceptado';
+  if not found then raise exception 'No se puede borrar: no existe o ya está aceptado'; end if;
+end $$;
+
+-- 3) REPARACIÓN: documento vinculado a la orden y al presupuesto
+create or replace function public.crear_reparacion(p_orden bigint, p_presupuesto bigint default null,
+        p_tareas jsonb default '[]'::jsonb, p_notas text default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin(); v_id bigint; v_num int; x jsonb; v_pos int;
+begin
+  if not exists(select 1 from ordenes where id = p_orden and taller_id = t and borrado is null) then
+    raise exception 'Orden no encontrada'; end if;
+  if p_presupuesto is not null and not exists(
+      select 1 from presupuestos where id = p_presupuesto and orden_id = p_orden and taller_id = t) then
+    raise exception 'Ese presupuesto no es de esta orden'; end if;
+  select id, numero into v_id, v_num from reparaciones where orden_id = p_orden limit 1;
+  if v_id is null then
+    v_num := public.siguiente_numero(t, 'reparacion');
+    insert into reparaciones(taller_id, orden_id, presupuesto_id, numero, notas)
+    values (t, p_orden, p_presupuesto, v_num, nullif(trim(coalesce(p_notas,'')),''))
+    returning id into v_id;
+  else
+    update reparaciones set presupuesto_id = coalesce(p_presupuesto, presupuesto_id),
+           notas = coalesce(nullif(trim(coalesce(p_notas,'')),''), notas)
+     where id = v_id;
+  end if;
+  select coalesce(max(pos), -1) + 1 into v_pos from tareas where orden_id = p_orden;
+  for x in select * from jsonb_array_elements(coalesce(p_tareas, '[]'::jsonb)) loop
+    perform public.guardar_tarea(null, p_orden, x->>'titulo', x->>'descripcion', (x->>'minutos')::numeric,
+      array(select jsonb_array_elements_text(coalesce(x->'mecanicos','[]'::jsonb))::uuid));
+  end loop;
+  update ordenes set fase = 'reparacion' where id = p_orden;
+  if p_presupuesto is not null then
+    update presupuestos set estado = 'aceptado', decidido = coalesce(decidido, now())
+     where id = p_presupuesto and estado <> 'aceptado';
+  end if;
+  return jsonb_build_object('id', v_id, 'numero', v_num);
+end $$;
+
+-- documentos de una orden, para las pantallas
+create or replace function public.documentos_orden(p_orden bigint) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare yo perfiles := public._yo();
+begin
+  if not exists(select 1 from ordenes where id = p_orden and taller_id = yo.taller_id) then
+    raise exception 'Orden no encontrada'; end if;
+  if yo.rol = 'mecanico' and not public.orden_mia(p_orden) then
+    raise exception 'Este coche no está asignado a ti'; end if;
+  return jsonb_build_object(
+    'orden', (select jsonb_build_object('numero', o.numero, 'fase', o.fase, 'creado', o.creado)
+              from ordenes o where o.id = p_orden),
+    'cliente', (select to_jsonb(cl) from ordenes o join coches c on c.id = o.coche_id
+                join clientes cl on cl.id = c.cliente_id where o.id = p_orden),
+    'presupuestos', (select coalesce(jsonb_agg(to_jsonb(x) order by x.numero desc), '[]'::jsonb)
+                     from presupuestos x where x.orden_id = p_orden),
+    'reparacion', (select to_jsonb(x) from reparaciones x where x.orden_id = p_orden limit 1));
+end $$;
+
+-- ─────────────── Firmas, ITV y coches parados ───────────────
+create or replace function public.guardar_firma(p_orden bigint, p_tipo text, p_imagen text,
+        p_firmante text default null, p_dni text default null) returns bigint
+language plpgsql security definer set search_path = public as $$
+declare yo perfiles := public._yo(); v_id bigint;
+begin
+  if p_tipo not in ('recepcion','presupuesto','entrega') then raise exception 'Tipo de firma no válido'; end if;
+  if coalesce(length(p_imagen), 0) < 100 then raise exception 'La firma está vacía'; end if;
+  if length(p_imagen) > 300000 then raise exception 'La firma pesa demasiado'; end if;
+  if not exists(select 1 from ordenes where id = p_orden and taller_id = yo.taller_id and borrado is null) then
+    raise exception 'Orden no encontrada'; end if;
+  if yo.rol = 'mecanico' and not public.orden_mia(p_orden) then
+    raise exception 'Este coche no está asignado a ti'; end if;
+  insert into firmas(taller_id, orden_id, tipo, imagen, firmante, dni, recogida_por)
+  values (yo.taller_id, p_orden, p_tipo, p_imagen, nullif(trim(coalesce(p_firmante,'')),''),
+          nullif(upper(trim(coalesce(p_dni,''))),''), yo.id)
+  on conflict (orden_id, tipo) do update set imagen = excluded.imagen, firmante = excluded.firmante,
+    dni = excluded.dni, creado = now(), recogida_por = excluded.recogida_por
+  returning id into v_id;
+  return v_id;
+end $$;
+
+create or replace function public.borrar_firma(p_orden bigint, p_tipo text) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  delete from firmas where orden_id = p_orden and tipo = p_tipo and taller_id = t;
+  if not found then raise exception 'Firma no encontrada'; end if;
+end $$;
+
+create or replace function public.firmas_orden(p_orden bigint) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare yo perfiles := public._yo();
+begin
+  if yo.rol = 'mecanico' and not public.orden_mia(p_orden) then return '[]'::jsonb; end if;
+  return coalesce((select jsonb_agg(to_jsonb(f)) from firmas f
+                   where f.orden_id = p_orden and f.taller_id = yo.taller_id), '[]'::jsonb);
+end $$;
+
+-- coches cuya ITV está cerca o ya pasada, para llamar al cliente
+create or replace function public.itv_proximas(p_dias int default 60) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  return coalesce((select jsonb_agg(x order by x->>'vence') from (
+    select jsonb_build_object('id', c.id, 'matricula', c.matricula, 'marca', c.marca, 'modelo', c.modelo,
+      'vence', c.itv_hasta, 'dias', (c.itv_hasta - current_date),
+      'avisado', c.itv_aviso,
+      'cliente', cl.nombre, 'telefono', cl.telefono, 'email', cl.email) as x
+    from coches c left join clientes cl on cl.id = c.cliente_id
+    where c.taller_id = t and c.borrado is null and c.itv_hasta is not null
+      and c.itv_hasta <= current_date + p_dias) z), '[]'::jsonb);
+end $$;
+
+create or replace function public.marcar_itv_avisada(p_coche bigint) returns void
+language plpgsql security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  update coches set itv_aviso = now() where id = p_coche and taller_id = t;
+  if not found then raise exception 'Coche no encontrado'; end if;
+end $$;
+
+-- órdenes abiertas sin movimiento desde hace días
+create or replace function public.coches_parados(p_dias int default 5) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare t bigint := public._admin();
+begin
+  return coalesce((select jsonb_agg(x order by x->>'ultimo') from (
+    select jsonb_build_object('orden_id', o.id, 'numero', o.numero, 'matricula', c.matricula,
+      'marca', c.marca, 'modelo', c.modelo, 'tipo_revision', o.tipo_revision, 'fase', o.fase,
+      'creado', o.creado, 'cliente', cl.nombre, 'telefono', cl.telefono,
+      'ultimo', greatest(o.creado,
+        coalesce((select max(coalesce(se.fin, se.inicio)) from orden_sesiones se where se.orden_id = o.id), o.creado),
+        coalesce((select max(ta.finalizada) from tareas ta where ta.orden_id = o.id), o.creado)),
+      'pendientes', (select count(*) from tareas ta where ta.orden_id = o.id and ta.estado <> 'finalizada')) as x
+    from ordenes o join coches c on c.id = o.coche_id
+    left join clientes cl on cl.id = c.cliente_id
+    where o.taller_id = t and o.borrado is null and o.estado = 'abierta'
+      and o.en_marcha_desde is null
+      and greatest(o.creado,
+        coalesce((select max(coalesce(se.fin, se.inicio)) from orden_sesiones se where se.orden_id = o.id), o.creado),
+        coalesce((select max(ta.finalizada) from tareas ta where ta.orden_id = o.id), o.creado)
+      ) < now() - make_interval(days => p_dias)) z), '[]'::jsonb);
+end $$;
+
 -- ─────────────── Panel, buscador y jornada ───────────────
 create or replace function public.panel() returns jsonb
 language plpgsql stable security definer set search_path = public as $$
@@ -1595,6 +1963,18 @@ begin
     'sin_checklist', (select count(*) from ordenes o where o.taller_id = t and o.estado = 'abierta' and o.borrado is null
                       and not exists(select 1 from checklists k where k.orden_id = o.id and k.tipo = 'inicial')),
     'avisos', (select count(*) from avisos where taller_id = t and leido is null),
+    'itv_pronto', (select count(*) from coches where taller_id = t and borrado is null
+                   and itv_hasta is not null and itv_hasta <= current_date + 60),
+    'parados', (select count(*) from ordenes o where o.taller_id = t and o.borrado is null
+                and o.estado = 'abierta' and o.en_marcha_desde is null
+                and greatest(o.creado,
+                  coalesce((select max(coalesce(se.fin, se.inicio)) from orden_sesiones se where se.orden_id = o.id), o.creado),
+                  coalesce((select max(ta.finalizada) from tareas ta where ta.orden_id = o.id), o.creado)
+                ) < now() - interval '5 days'),
+    'en_recepcion', (select count(*) from ordenes where taller_id = t and borrado is null
+                     and estado = 'abierta' and fase in ('recepcion','presupuesto')),
+    'presupuestos_pendientes', (select count(*) from presupuestos p join ordenes o on o.id = p.orden_id
+                                where p.taller_id = t and o.borrado is null and p.estado in ('borrador','enviado')),
     'citas_hoy', (select count(*) from citas where taller_id = t and estado = 'prevista'
                   and inicio >= date_trunc('day', now()) and inicio < date_trunc('day', now()) + interval '1 day'),
     'cerradas_mes', (select count(*) from ordenes where taller_id = t and estado = 'finalizada' and cerrado >= mes),

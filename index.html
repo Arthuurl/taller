@@ -16,46 +16,52 @@
 <script src="config.js"></script>
 <script src="marcas.js"></script>
 <style>
-:root{--bg:#E6EAEE;--tinta:#1B2733;--panel:#fff;--linea:#CBD3DB;--suave:#5B6875;--amar:#F2B705;--verde:#2E8B57;--rojo:#C8423B;--azul:#2F5D8A}
+:root{--bg:#E6EAEE;--tinta:#1B2733;--panel:#fff;--linea:#CBD3DB;--suave:#5B6875;--amar:#F2B705;
+  --verde:#2E8B57;--rojo:#C8423B;--azul:#2F5D8A;--suave-1:#F1F4F7;--suave-2:#DDE3E9;--marca-suave:#FFF6D6;
+  --barra:#1B2733;--barra-alt:#243140;--barra-txt:#C9D2DB;--barra-sub:#AEB9C4;--sombra:rgba(27,39,51,.18)}
+:root[data-tema="oscuro"]{--bg:#12181E;--tinta:#E8ECF0;--panel:#1B222A;--linea:#333E49;--suave:#93A1AE;
+  --amar:#F5C038;--verde:#3FA76B;--rojo:#E06B63;--azul:#5B9BD5;--suave-1:#232B34;--suave-2:#2C353F;
+  --marca-suave:#3A3016;--barra:#0D1318;--barra-alt:#1E2730;--barra-txt:#C2CCD6;--barra-sub:#8C99A5;
+  --sombra:rgba(0,0,0,.5)}
 *{box-sizing:border-box}
 body{margin:0;font:16px/1.5 Barlow,system-ui,sans-serif;color:var(--tinta);background:var(--bg)}
 h1,h2,h3{font-family:"Barlow Condensed",Barlow,sans-serif;font-weight:600;line-height:1.1;margin:0 0 .4em}
 h1{font-size:2rem}h2{font-size:1.45rem}h3{font-size:1.2rem}
 p{margin:.3em 0}
 .suave{color:var(--suave);font-size:.92rem}
-header#top{background:var(--tinta);color:#fff;position:sticky;top:0;z-index:5}
-header#top::after{content:"";display:block;height:6px;background:repeating-linear-gradient(-45deg,var(--amar) 0 12px,var(--tinta) 12px 24px)}
+header#top{background:var(--barra);color:#fff;position:sticky;top:0;z-index:5}
+header#top::after{content:"";display:block;height:6px;background:repeating-linear-gradient(-45deg,var(--amar) 0 12px,var(--barra) 12px 24px)}
 .barra{display:flex;align-items:center;gap:6px 10px;padding:10px 16px;max-width:1100px;margin:auto;flex-wrap:wrap}
 .logo{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-size:1.4rem;font-weight:700;margin-right:auto;line-height:1.1}
-.logo small{display:block;font:400 .8rem Barlow,system-ui,sans-serif;color:#AEB9C4}
+.logo small{display:block;font:400 .8rem Barlow,system-ui,sans-serif;color:var(--barra-sub)}
 .logo{display:flex;align-items:center;gap:10px}
-.logo-img{height:38px;width:auto;max-width:130px;object-fit:contain;background:#fff;border-radius:4px;padding:3px}
-.logo-prev{min-height:120px;display:flex;align-items:center;justify-content:center;background:#F4F6F8;border:1px dashed var(--linea);border-radius:6px;padding:12px}
+.logo-img{height:38px;width:auto;max-width:130px;object-fit:contain;background:var(--panel);border-radius:4px;padding:3px}
+.logo-prev{min-height:120px;display:flex;align-items:center;justify-content:center;background:var(--suave-1);border:1px dashed var(--linea);border-radius:6px;padding:12px}
 .logo-prev img{max-height:140px;max-width:100%;object-fit:contain}
 .fotos{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px}
 .fotos.subiendo{opacity:.5;pointer-events:none}
 .mini{position:relative;display:inline-block;line-height:0}
-.mini img{width:62px;height:62px;object-fit:cover;border-radius:4px;border:1px solid var(--linea);background:#EDF1F4;cursor:zoom-in}
+.mini img{width:62px;height:62px;object-fit:cover;border-radius:4px;border:1px solid var(--linea);background:var(--suave-1);cursor:zoom-in}
 .mini.elegible{cursor:pointer;opacity:.55}
 .mini.elegible.elegida{opacity:1}
 .mini.elegible i{position:absolute;inset:auto 2px 2px auto;width:22px;height:22px;border-radius:50%;
-  background:#fff;border:1px solid var(--linea);color:transparent;font:700 13px/22px Barlow,system-ui,sans-serif;text-align:center}
-.mini.elegible.elegida i{background:var(--verde);border-color:var(--verde);color:#fff}
+  background:var(--panel);border:1px solid var(--linea);color:transparent;font:700 13px/22px Barlow,system-ui,sans-serif;text-align:center}
+.mini.elegible.elegida i{background:var(--verde);border-color:var(--verde);color:var(--panel)}
 .mini.elegible.elegida img{border-color:var(--verde);border-width:2px}
 .fotos.grandes .mini img{width:190px;height:150px}
 .mini .quitar{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;border:0;
-  background:var(--rojo);color:#fff;font:700 14px/1 Barlow,system-ui,sans-serif;cursor:pointer}
+  background:var(--rojo);color:var(--panel);font:700 14px/1 Barlow,system-ui,sans-serif;cursor:pointer}
 .ficha{margin-bottom:16px;border-left:5px solid var(--amar)}
 .mes{margin-top:10px;overflow-x:auto}
 .mes-cab,.mes-fila{display:grid;grid-template-columns:repeat(7,minmax(96px,1fr)) 92px;gap:6px}
 .mes-cab{font-size:.8rem;color:var(--suave);font-weight:600;margin-bottom:6px}
 .mes-fila{margin-bottom:6px}
-.dia{background:#fff;border:1px solid var(--linea);border-radius:5px;padding:5px 6px;min-height:84px;cursor:pointer}
+.dia{background:var(--panel);border:1px solid var(--linea);border-radius:5px;padding:5px 6px;min-height:84px;cursor:pointer}
 .dia:hover{border-color:var(--tinta)}
-.dia.fuera{background:#F1F4F7;color:var(--suave)}
+.dia.fuera{background:var(--suave-1);color:var(--suave)}
 .dia.hoy{border-color:var(--amar);border-width:2px}
 .dia .num{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-weight:700;font-size:1.05rem}
-.chip-turno{display:block;background:var(--tinta);color:#fff;border-radius:3px;padding:2px 5px;margin-top:3px;
+.chip-turno{display:block;background:var(--tinta);color:var(--panel);border-radius:3px;padding:2px 5px;margin-top:3px;
   font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chip-turno .suave{color:#C9D2DB}
 .mes-semana{display:flex;align-items:center;justify-content:center}
@@ -64,12 +70,12 @@ header#top::after{content:"";display:block;height:6px;background:repeating-linea
 .rej-fila{margin-top:8px}
 .horas{display:flex;justify-content:space-between;font-size:.78rem;color:var(--suave)}
 .rej-nombre{font-weight:600;font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pista{position:relative;height:54px;background:#F1F4F7;border:1px solid var(--linea);border-radius:5px;
+.pista{position:relative;height:54px;background:var(--suave-1);border:1px solid var(--linea);border-radius:5px;
   touch-action:none;cursor:crosshair;overflow:hidden}
 .pista>i{position:absolute;top:0;bottom:0;width:1px;background:var(--linea)}
-.turno{position:absolute;top:4px;bottom:4px;background:var(--tinta);color:#fff;border-radius:4px;padding:4px 7px;
+.turno{position:absolute;top:4px;bottom:4px;background:var(--tinta);color:var(--panel);border-radius:4px;padding:4px 7px;
   font-size:.8rem;line-height:1.25;overflow:hidden;cursor:pointer;border-left:4px solid var(--amar)}
-.turno span{display:block;color:#C9D2DB;font-size:.75rem;overflow:hidden;text-overflow:ellipsis}
+.turno span{display:block;color:var(--barra-txt);font-size:.75rem;overflow:hidden;text-overflow:ellipsis}
 .turno.fantasma{background:var(--azul);opacity:.75;pointer-events:none}
 .piezas{margin-top:2px;font-size:.9rem;width:100%}
 .pieza{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:3px 0}
@@ -77,12 +83,12 @@ header#top::after{content:"";display:block;height:6px;background:repeating-linea
 body.pizarra{background:#12191F}
 body.pizarra header#top{display:none}
 body.pizarra main{max-width:none;padding:0}
-.pz{color:#EDF1F4;padding:18px 22px 26px}
+.pz{color:var(--suave-1);padding:18px 22px 26px}
 .pz-cab{display:flex;align-items:center;gap:18px;flex-wrap:wrap;border-bottom:4px solid var(--amar);padding-bottom:12px}
-.pz-logo{max-height:56px;max-width:190px;object-fit:contain;background:#fff;border-radius:4px;padding:4px}
+.pz-logo{max-height:56px;max-width:190px;object-fit:contain;background:var(--panel);border-radius:4px;padding:4px}
 .pz-datos{margin-left:auto;display:flex;gap:18px;align-items:baseline;
-  font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-size:1.5rem;color:#AEB9C4}
-.pz-hora{color:#fff;font-size:2.2rem;font-weight:700}
+  font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-size:1.5rem;color:var(--barra-sub)}
+.pz-hora{color:var(--panel);font-size:2.2rem;font-weight:700}
 .pz-rejilla{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));margin-top:18px}
 .pz-coche{background:#1B2733;border:2px solid #2B3947;border-radius:8px;padding:14px 16px}
 .pz-coche.run{border-color:var(--amar)}
@@ -92,14 +98,14 @@ body.pizarra main{max-width:none;padding:0}
 .pz-estado{font-size:.9rem;color:#AEB9C4;text-align:right}
 .pz-coche.run .pz-estado{color:var(--amar)}
 .pz-coche-nom{font-size:1.05rem;margin-top:2px}
-.pz-mec{font-weight:600;font-size:1.3rem;margin-top:8px;color:#fff}
+.pz-mec{font-weight:600;font-size:1.3rem;margin-top:8px;color:var(--panel)}
 .pz-abajo{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:12px}
 .pz-prog{width:150px;height:8px;background:#2B3947;border-radius:4px;overflow:hidden}
 .pz-prog i{display:block;height:100%;background:var(--verde)}
 .pz-sub{font-size:.85rem;color:#AEB9C4;margin-top:4px}
-.pz .cd{font-size:2.3rem;color:#fff}
+.pz .cd{font-size:2.3rem;color:var(--panel)}
 .pz .cd.neg{color:#FF7A70}
-.pz-vacio{text-align:center;padding:60px;font-size:1.4rem;color:#AEB9C4}
+.pz-vacio{text-align:center;padding:60px;font-size:1.4rem;color:var(--barra-sub)}
 @media (min-width:1500px){.pz-rejilla{grid-template-columns:repeat(auto-fill,minmax(360px,1fr))}
   .pz-placa{font-size:2.5rem}.pz-mec{font-size:1.5rem}.pz .cd{font-size:2.8rem}}
 .kpis{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))}
@@ -110,17 +116,17 @@ body.pizarra main{max-width:none;padding:0}
   line-height:1.05;overflow-wrap:anywhere}
 .kpi span:last-child{font-size:.88rem;color:var(--suave)}
 td.mal{color:var(--rojo)} td.bien{color:var(--verde)}
-#buscador{width:210px;padding:6px 10px;border-radius:4px;border:1px solid #3A4754;background:#243140;color:#fff;margin-right:8px}
-#buscador::placeholder{color:#8E9AA6}
-.chip-aus{display:block;background:#8A6A00;color:#fff;border-radius:3px;padding:2px 5px;margin-top:3px;
+#buscador{width:210px;padding:6px 10px;border-radius:4px;border:1px solid var(--barra-alt);background:var(--barra-alt);color:#fff;margin-right:8px}
+#buscador::placeholder{color:var(--barra-sub)}
+.chip-aus{display:block;background:#8A6A00;color:var(--panel);border-radius:3px;padding:2px 5px;margin-top:3px;
   font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .grafico{display:flex;gap:14px;align-items:flex-end;margin-top:12px;overflow-x:auto;padding-bottom:4px}
 .columna{flex:1 1 60px;min-width:60px;text-align:center}
-.tubo{position:relative;height:130px;background:#F1F4F7;border-radius:4px;overflow:hidden}
+.tubo{position:relative;height:130px;background:var(--suave-1);border-radius:4px;overflow:hidden}
 .tubo i{position:absolute;left:0;right:0;bottom:0;background:var(--azul);border-radius:4px 4px 0 0;min-height:3px}
 .columna .pie{font-size:.8rem;margin-top:6px;color:var(--suave)}
 .columna .pie strong{font-size:1.1rem;color:var(--tinta)}
-.carga{height:14px;background:#DDE3E9;border-radius:7px;overflow:hidden;margin:10px 0 4px}
+.carga{height:14px;background:var(--suave-2);border-radius:7px;overflow:hidden;margin:10px 0 4px}
 .carga i{display:block;height:100%;background:var(--verde)}
 .carga i.lleno{background:var(--rojo)}
 .rojo{color:var(--rojo);font-weight:600}
@@ -131,8 +137,37 @@ td.mal{color:var(--rojo)} td.bien{color:var(--verde)}
 .doc{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;
   padding:7px 0;border-top:1px solid var(--linea);font-size:.94rem}
 .mensajes{max-height:280px;overflow-y:auto;margin-top:8px}
-.msg{padding:8px 10px;border-radius:6px;background:#F1F4F7;margin-bottom:8px;font-size:.95rem}
-.msg.mio{background:#FFF6D6}
+.msg{padding:8px 10px;border-radius:6px;background:var(--suave-1);margin-bottom:8px;font-size:.95rem}
+.msg.mio{background:var(--marca-suave)}
+.firmas-caja{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-top:10px}
+.firma-hueco{border:1px dashed var(--linea);border-radius:6px;padding:10px;text-align:center;min-height:120px;
+  display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center}
+.firma-hueco.hecha{border-style:solid;background:var(--suave-1)}
+.firma-hueco img{max-width:100%;max-height:70px;object-fit:contain}
+.lienzo-firma{position:relative;margin-top:10px;background:var(--panel);border:1px solid var(--linea);border-radius:6px}
+.lienzo-firma canvas{display:block;width:100%;height:auto;touch-action:none;cursor:crosshair}
+.lienzo-firma .linea-firma{position:absolute;left:8%;right:8%;bottom:22%;border-bottom:1px dashed var(--linea);pointer-events:none}
+.itv{display:inline-block;font-size:.84rem;font-weight:600;padding:2px 9px;border-radius:99px;
+  border:1px solid currentColor}
+.itv.ok{color:var(--verde)} .itv.aviso{color:#A06A00} .itv.mal{color:var(--rojo)}
+.peg{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:34px;padding:0 8px;
+  border-radius:50%;background:var(--f);color:var(--t);font:700 .95rem Barlow,system-ui,sans-serif;
+  border:2px solid rgba(0,0,0,.12);flex:0 0 auto}
+.peg.grande{min-width:46px;height:46px;font-size:1.2rem}
+.peg i{font-style:normal;font-size:.7rem;margin-left:1px;opacity:.85}
+.distintivo-zona{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;
+  padding:10px;background:var(--suave-1);border-radius:6px}
+.numeros{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.numero{flex:1 1 90px;border:1px solid var(--linea);border-radius:5px;padding:5px 8px;background:var(--suave-1)}
+.numero small{display:block;font-size:.74rem;color:var(--suave)}
+.numero strong{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-size:1.25rem}
+.numero.vacio strong{color:var(--linea)}
+.numero.aqui{border-color:var(--amar);border-width:2px;background:var(--marca-suave)}
+.pre{border-top:1px solid var(--linea);padding:12px 0 4px;margin-top:8px}
+.pre-lineas{margin-top:8px;font-size:.92rem}
+.pre-fila{display:grid;gap:6px;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));align-items:end;
+  padding:8px 0;border-top:1px solid var(--linea)}
+.pre-fila .l-quitar{align-self:center}
 .cita{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start;
   padding:10px 0;border-top:1px solid var(--linea)}
 .cita.pasada{opacity:.6}
@@ -148,15 +183,18 @@ td.mal{color:var(--rojo)} td.bien{color:var(--verde)}
   border-bottom:4px solid var(--amar);padding-bottom:10px}
 .inf-logo{max-height:70px;max-width:220px;object-fit:contain}
 .inf-coche{display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap;
-  margin:14px 0;padding:12px 14px;background:#F4F6F8;border:1px solid var(--linea);border-radius:6px}
+  margin:14px 0;padding:12px 14px;background:var(--suave-1);border:1px solid var(--linea);border-radius:6px}
 .firmas{display:flex;gap:24px;margin-top:34px;flex-wrap:wrap}
 .firmas div{flex:1 1 180px;font-size:.9rem;color:var(--suave)}
 .firmas span{display:block;border-bottom:1px solid var(--tinta);height:42px}
+.firmas span.firmada{display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px}
+.firmas span.firmada img{max-height:40px;max-width:100%;object-fit:contain}
+.firmas small{display:block;font-size:.76rem;margin-top:3px}
 body.solo-jornada #app > *:not(#h-res){display:none}
 body.solo-jornada #h-res > *:not(#jornada){display:none}
 @media print{
   header#top,#avisos,#toast,.no-print,nav{display:none!important}
-  body{background:#fff}
+  body{background:var(--panel)}
   main{padding:0;max-width:none}
   .panel{border:0;padding:0}
   .informe h2{page-break-after:avoid}
@@ -165,23 +203,43 @@ body.solo-jornada #h-res > *:not(#jornada){display:none}
   .mini img{width:52px;height:52px}
   @page{margin:14mm}
 }
-nav{display:flex;flex-wrap:wrap;gap:2px}
-nav button{background:none;border:0;color:#C9D2DB;font:500 .95rem Barlow,system-ui,sans-serif;padding:8px 10px;border-radius:4px;cursor:pointer}
-nav button:hover{color:#fff}
-nav button[aria-current=page]{color:#fff;box-shadow:inset 0 -3px var(--amar)}
+nav{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+nav .grupo{position:relative}
+nav .cab-grupo,nav .suelto{display:inline-flex;align-items:center;gap:6px;background:none;border:0;color:var(--barra-txt);
+  font:500 .95rem Barlow,system-ui,sans-serif;padding:8px 12px;border-radius:5px;cursor:pointer}
+nav .cab-grupo:hover,nav .suelto:hover{color:#fff;background:var(--barra-alt)}
+nav .cab-grupo svg{opacity:.65;transition:transform .15s}
+nav .grupo.abierto .cab-grupo{color:#fff;background:var(--barra-alt)}
+nav .grupo.abierto .cab-grupo svg{transform:rotate(180deg)}
+nav .grupo.activo .cab-grupo{color:#fff;box-shadow:inset 0 -3px var(--amar)}
+nav .desplegable{display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:30;min-width:238px;
+  background:var(--panel);border:1px solid var(--linea);border-radius:8px;padding:6px;box-shadow:0 12px 30px rgba(0,0,0,.35)}
+nav .grupo.abierto .desplegable{display:block}
+nav .desplegable button{display:block;width:100%;text-align:left;background:none;border:0;border-radius:5px;
+  padding:8px 10px;cursor:pointer;color:var(--tinta);font:inherit}
+nav .desplegable button:hover{background:var(--suave-1)}
+nav .desplegable button[aria-current=page]{background:var(--tinta);color:var(--panel)}
+nav .desplegable strong{display:block;font:600 .95rem Barlow,system-ui,sans-serif}
+nav .desplegable span{display:block;font-size:.8rem;color:var(--suave);margin-top:1px}
+nav .desplegable button[aria-current=page] span{color:#C9D2DB}
+@media (max-width:760px){
+  nav{width:100%;gap:2px}
+  nav .grupo{position:static}
+  nav .desplegable{left:0;right:0;width:100%}
+}
 main{max-width:1100px;margin:auto;padding:22px 16px 70px}
 .panel{background:var(--panel);border:1px solid var(--linea);border-radius:6px;padding:16px}
 .btn{font:600 .95rem Barlow,system-ui,sans-serif;border-radius:4px;padding:8px 14px;border:1px solid transparent;cursor:pointer;min-height:42px}
 .pri{background:var(--amar);color:var(--tinta)}
-.sec{background:#fff;border-color:var(--linea);color:var(--tinta)}
-.ok{background:var(--verde);color:#fff}
-.peligro{background:#fff;border-color:var(--rojo);color:var(--rojo)}
+.sec{background:var(--panel);border-color:var(--linea);color:var(--tinta)}
+.ok{background:var(--verde);color:var(--panel)}
+.peligro{background:var(--panel);border-color:var(--rojo);color:var(--rojo)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .lnk{background:none;border:0;color:var(--azul);font:inherit;text-decoration:underline;cursor:pointer;padding:0}
 :focus-visible{outline:3px solid var(--azul);outline-offset:2px}
 label{display:block;font-size:.85rem;color:var(--suave)}
 label>input,label>select,label>textarea{margin-top:3px}
-input,select,textarea{width:100%;font:inherit;font-size:1rem;padding:8px 10px;border:1px solid var(--linea);border-radius:4px;background:#fff;color:var(--tinta)}
+input,select,textarea{width:100%;font:inherit;font-size:1rem;padding:8px 10px;border:1px solid var(--linea);border-radius:4px;background:var(--panel);color:var(--tinta)}
 input[type=color]{padding:2px;height:42px}
 input[type=checkbox]{width:auto}
 fieldset{border:1px solid var(--linea);border-radius:4px;margin:10px 0;padding:8px 10px}
@@ -196,10 +254,10 @@ legend{font-size:.85rem;color:var(--suave);padding:0 4px}
 .cab{justify-content:space-between;margin-bottom:14px}
 .cab h1{margin:0}
 @media (max-width:760px){.dos{grid-template-columns:1fr}h1{font-size:1.7rem}.tareas-primero>section:last-child{order:-1}}
-.placa{display:inline-flex;border:2px solid var(--tinta);border-radius:4px;background:#fff;font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-weight:700;font-size:1.25rem;letter-spacing:.08em;overflow:hidden;white-space:nowrap}
-.placa::before{content:"E";background:#1D4FA3;color:#fff;font:600 .7rem Barlow,system-ui,sans-serif;padding:10px 4px 0}
+.placa{display:inline-flex;border:2px solid var(--tinta);border-radius:4px;background:var(--panel);font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-weight:700;font-size:1.25rem;letter-spacing:.08em;overflow:hidden;white-space:nowrap}
+.placa::before{content:"E";background:#1D4FA3;color:var(--panel);font:600 .7rem Barlow,system-ui,sans-serif;padding:10px 4px 0}
 .placa span{padding:0 9px}
-.escena{background:linear-gradient(#F5F7F9 70%,#D9E0E6);border-radius:4px;padding:6px 10px 0}
+.escena{background:linear-gradient(var(--suave-1) 70%,var(--suave-2));border-radius:4px;padding:6px 10px 0}
 .coche-svg{width:100%;height:auto;display:block}
 .rueda{transform-box:fill-box;transform-origin:center}
 .gira .rueda{animation:girar 1.1s linear infinite}
@@ -209,9 +267,9 @@ legend{font-size:.85rem;color:var(--suave);padding:0 4px}
 .estado{display:inline-block;font-size:.8rem;font-weight:600;padding:1px 9px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
 .e-pendiente{color:var(--suave)}.e-en_curso{color:var(--azul)}.e-a_medias{color:#A06A00}
 .e-finalizada{color:var(--verde)}.e-abierta{color:var(--azul)}.e-cancelada{color:var(--rojo)}
-.barra-prog{height:6px;background:#DDE3E9;border-radius:3px;overflow:hidden;margin:8px 0 4px}
+.barra-prog{height:6px;background:var(--suave-2);border-radius:3px;overflow:hidden;margin:8px 0 4px}
 .barra-prog i{display:block;height:100%;background:var(--verde)}
-.tarea{border:1px solid var(--linea);border-radius:6px;padding:16px 14px 14px;background:#fff;position:relative}
+.tarea{border:1px solid var(--linea);border-radius:6px;padding:16px 14px 14px;background:var(--panel);position:relative}
 .tarea.run{border-color:var(--tinta)}
 .tarea.run::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;border-radius:5px 5px 0 0;background:repeating-linear-gradient(-45deg,var(--amar) 0 10px,var(--tinta) 10px 20px);background-size:28.28px 28.28px;animation:mover 1s linear infinite}
 @keyframes mover{to{background-position:28.28px 0}}
@@ -227,12 +285,12 @@ legend{font-size:.85rem;color:var(--suave);padding:0 4px}
 .chk-rep input:disabled{cursor:not-allowed}
 label.combo{position:relative}
 .combo-lista{position:absolute;left:0;right:0;top:100%;z-index:12;margin:2px 0 0;padding:0;list-style:none;
-  background:#fff;border:1px solid var(--linea);border-radius:4px;max-height:230px;overflow-y:auto;
-  box-shadow:0 8px 20px rgba(27,39,51,.18)}
+  background:var(--panel);border:1px solid var(--linea);border-radius:4px;max-height:230px;overflow-y:auto;
+  box-shadow:0 8px 20px var(--sombra)}
 .combo-lista li{padding:9px 10px;cursor:pointer;font-size:.98rem}
-.combo-lista li:hover,.combo-lista li.sel{background:var(--tinta);color:#fff}
+.combo-lista li:hover,.combo-lista li.sel{background:var(--tinta);color:var(--panel)}
 #avisos{pointer-events:none;position:fixed;top:78px;right:12px;width:min(340px,calc(100vw - 24px));display:flex;flex-direction:column;gap:10px;z-index:15}
-.aviso{pointer-events:auto;background:#fff;border:1px solid var(--linea);border-left:5px solid var(--azul);border-radius:6px;padding:12px;box-shadow:0 6px 20px rgba(27,39,51,.18);animation:entra .25s ease-out}
+.aviso{pointer-events:auto;background:var(--panel);border:1px solid var(--linea);border-left:5px solid var(--azul);border-radius:6px;padding:12px;box-shadow:0 6px 20px var(--sombra);animation:entra .25s ease-out}
 .aviso.a-incidencia{border-left-color:var(--rojo)}
 .aviso.a-fin_trabajo{border-left-color:var(--verde)}
 .aviso.a-pausa{border-left-color:#A06A00}
@@ -240,9 +298,12 @@ label.combo{position:relative}
 .aviso p{margin:6px 0}
 @keyframes entra{from{opacity:0;transform:translateX(20px)}}
 .aviso-fila.leido{opacity:.6}
-nav .pin{font-style:normal;display:inline-block;min-width:20px;margin-left:6px;padding:0 5px;border-radius:99px;background:var(--rojo);color:#fff;font-size:.78rem;text-align:center}
+#btn-tema{padding:8px 10px;line-height:0}
+#btn-tema svg{display:block}
+nav .pin{font-style:normal;display:inline-block;min-width:19px;padding:0 5px;border-radius:99px;
+  background:var(--rojo);color:var(--panel);font-size:.76rem;line-height:1.45;text-align:center}
 .derecha{text-align:right}
-.nota-relevo{background:#FFF6D6;border-left:4px solid var(--amar);padding:6px 10px;margin-top:8px;font-size:.92rem}
+.nota-relevo{background:var(--marca-suave);border-left:4px solid var(--amar);padding:6px 10px;margin-top:8px;font-size:.92rem}
 .ck-item{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--linea)}
 .ck-item .nota{grid-column:1/-1}
 .ck-item .nota input{padding:5px 8px;font-size:.92rem}
@@ -251,10 +312,10 @@ nav .pin{font-style:normal;display:inline-block;min-width:20px;margin-left:6px;p
 .seg label+label{border-left:1px solid var(--linea)}
 .seg input{position:absolute;opacity:0;width:1px;height:1px}
 .seg span{display:block;padding:7px 12px;font-weight:500}
-.seg input:checked+span{background:var(--tinta);color:#fff}
+.seg input:checked+span{background:var(--tinta);color:var(--panel)}
 .seg input[value=revisar]:checked+span{background:#A06A00}
 .seg input:focus-visible+span{outline:3px solid var(--azul);outline-offset:-3px}
-.sello{border:1px dashed var(--linea);border-radius:4px;padding:8px 12px;background:#F7F9FA;font-size:.92rem}
+.sello{border:1px dashed var(--linea);border-radius:4px;padding:8px 12px;background:var(--suave-1);font-size:.92rem}
 .sello strong{font-weight:600}
 table{width:100%;border-collapse:collapse;font-size:.92rem}
 th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--linea);vertical-align:top}
@@ -267,10 +328,23 @@ dialog{border:0;border-radius:8px;padding:0;max-width:520px;width:calc(100% - 24
 dialog::backdrop{background:rgba(27,39,51,.55)}
 .dlg{padding:18px}
 .acc{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
-#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--tinta);color:#fff;padding:10px 16px;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;z-index:20}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--tinta);color:var(--panel);padding:10px 16px;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;z-index:20}
 #toast.ver{opacity:1}
 #toast.mal{background:var(--rojo)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+:root[data-tema="oscuro"] .placa{background:#E8ECF0;color:#12181E;border-color:#0D1318}
+:root[data-tema="oscuro"] .escena{background:linear-gradient(#232B34 70%,#2C353F)}
+:root[data-tema="oscuro"] .logo-img,:root[data-tema="oscuro"] .inf-logo{background:#E8ECF0}
+:root[data-tema="oscuro"] .lienzo-firma{background:#E8ECF0}
+:root[data-tema="oscuro"] .firma-hueco.hecha img,:root[data-tema="oscuro"] .firmas img{filter:invert(1)}
+:root[data-tema="oscuro"] .btn.sec{background:var(--suave-1)}
+:root[data-tema="oscuro"] input,:root[data-tema="oscuro"] select,:root[data-tema="oscuro"] textarea{
+  background:var(--suave-1);color:var(--tinta);border-color:var(--linea)}
+:root[data-tema="oscuro"] .mini img{background:var(--suave-2)}
+@media print{:root[data-tema="oscuro"]{--bg:#fff;--panel:#fff;--tinta:#1B2733;--linea:#CBD3DB;--suave:#5B6875;
+  --suave-1:#F1F4F7;--suave-2:#DDE3E9}
+  :root[data-tema="oscuro"] .firmas img{filter:none}}
 </style>
 </head>
 <body>
@@ -303,6 +377,7 @@ const app = html => {
   pintarFotos($('#app'));
 };
 const on = (sel, ev, fn) => document.querySelectorAll('#app ' + sel).forEach(el => el.addEventListener(ev, fn));
+const zona = c => [...new Set([c?.cp, c?.poblacion, c?.provincia].filter(Boolean))].join(' ');
 const fmtFecha = ts => ts ? new Date(ts * 1000).toLocaleString('es-ES', {dateStyle:'short', timeStyle:'short'}) : '';
 const fmtMin = s => { const m = Math.round(s / 60); return m >= 60 ? `${Math.floor(m/60)} h ${m%60 ? m%60 + ' min' : ''}`.trim() : `${m} min`; };
 function fmtCD(r){
@@ -754,6 +829,118 @@ async function leerMatricula(campo){
   d.showModal();
 }
 
+/* ═════════ distintivo ambiental ═════════ */
+// Reglas publicadas por la DGT. Es un cálculo orientativo: la etiqueta oficial la da la DGT,
+// y puede cambiar si el coche se ha reformado (por ejemplo, al instalar GLP).
+const COMBUSTIBLES = {
+  gasolina: 'Gasolina', diesel: 'Diésel', hibrido: 'Híbrido (no enchufable)',
+  phev: 'Híbrido enchufable, menos de 40 km', phev40: 'Híbrido enchufable, 40 km o más',
+  electrico: 'Eléctrico', hidrogeno: 'Pila de combustible (hidrógeno)',
+  glp: 'GLP (autogás)', gnc: 'Gas natural (GNC o GNL)',
+};
+const DISTINTIVOS = {
+  '0':   {nombre: 'Cero emisiones', fondo: '#0B63B5', texto: '#fff', etiqueta: '0'},
+  'ECO': {nombre: 'Etiqueta ECO',   fondo: '#0B63B5', texto: '#fff', etiqueta: 'ECO'},
+  'C':   {nombre: 'Etiqueta C',     fondo: '#2E8B57', texto: '#fff', etiqueta: 'C'},
+  'B':   {nombre: 'Etiqueta B',     fondo: '#F2B705', texto: '#1B2733', etiqueta: 'B'},
+  'sin': {nombre: 'Sin distintivo', fondo: '#8E9AA6', texto: '#fff', etiqueta: '—'},
+};
+// Devuelve {codigo, seguro, porque}. seguro=false cuando falta el mes y la fecha cae en un año frontera.
+function calcularDistintivo(c){
+  const comb = c?.combustible;
+  if (!comb) return null;
+  if (comb === 'electrico' || comb === 'hidrogeno' || comb === 'phev40')
+    return {codigo: '0', seguro: true, porque: COMBUSTIBLES[comb]};
+  // fecha de matriculación: la exacta si la hay, si no el año
+  const f = c.matriculacion ? new Date(c.matriculacion + 'T00:00') : null;
+  const anio = f ? f.getFullYear() : (c.anio ? Number(c.anio) : null);
+  const mes = f ? f.getMonth() + 1 : null;
+  if (!anio) return {codigo: null, seguro: false, porque: 'Falta el año de matriculación'};
+  const desde = (a, m = 1) => anio > a || (anio === a && (mes === null ? null : mes >= m));
+  const frontera = a => anio === a && mes === null;   // el año justo, sin mes: no se puede afinar
+  const ecoBase = ['hibrido', 'phev', 'glp', 'gnc'].includes(comb);
+  // Los ECO deben cumplir además los criterios de la C (gasolina desde enero de 2006)
+  if (ecoBase){
+    if (anio > 2006 || (anio === 2006 && (mes === null || mes >= 1)))
+      return {codigo: 'ECO', seguro: true, porque: COMBUSTIBLES[comb]};
+    return {codigo: 'sin', seguro: !frontera(2006), porque: `${COMBUSTIBLES[comb]}, anterior a 2006`};
+  }
+  if (comb === 'gasolina'){
+    if (anio >= 2006) return {codigo: 'C', seguro: true, porque: 'Gasolina de 2006 en adelante'};
+    if (anio >= 2000) return {codigo: 'B', seguro: !frontera(2006), porque: 'Gasolina entre 2000 y 2005'};
+    return {codigo: 'sin', seguro: !frontera(2000), porque: 'Gasolina anterior al año 2000'};
+  }
+  if (comb === 'diesel'){
+    // la C de diésel es desde septiembre de 2015, así que aquí el mes importa
+    if (anio > 2015) return {codigo: 'C', seguro: true, porque: 'Diésel posterior a 2015'};
+    if (anio === 2015) return mes === null
+      ? {codigo: 'B', seguro: false, porque: 'Diésel de 2015: la C empieza en septiembre'}
+      : (mes >= 9 ? {codigo: 'C', seguro: true, porque: 'Diésel de septiembre de 2015 en adelante'}
+                  : {codigo: 'B', seguro: true, porque: 'Diésel anterior a septiembre de 2015'});
+    if (anio >= 2006) return {codigo: 'B', seguro: !frontera(2006), porque: 'Diésel entre 2006 y 2015'};
+    return {codigo: 'sin', seguro: !frontera(2006), porque: 'Diésel anterior a 2006'};
+  }
+  return null;
+}
+// El que se enseña: el corregido a mano si lo hay, si no el calculado
+function distintivoDe(c){
+  if (c?.distintivo) return {codigo: c.distintivo, seguro: true, manual: true, porque: 'Puesto a mano'};
+  return calcularDistintivo(c);
+}
+function pegatina(d, tam = ''){
+  if (!d || !d.codigo) return '';
+  const x = DISTINTIVOS[d.codigo];
+  return `<span class="peg ${tam}" style="--f:${x.fondo};--t:${x.texto}" title="${esc(x.nombre)}${d.porque ? ' · ' + esc(d.porque) : ''}${d.seguro === false ? ' · sin confirmar' : ''}">
+    ${x.etiqueta}${d.seguro === false ? '<i>?</i>' : ''}</span>`;
+}
+
+/* ═════════ ITV ═════════ */
+// Periodicidad según el tipo de vehículo, contando desde la primera matriculación.
+// Es orientativo: la fecha buena es la de la última inspección, que se pone a mano.
+function itvCalculada(c){
+  if (!c?.matriculacion) return null;
+  const alta = new Date(c.matriculacion + 'T00:00');
+  if (isNaN(alta)) return null;
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const anios = (hoy - alta) / (365.25 * 86400000);
+  const ligero = ['furgoneta', 'pickup'].includes(c.carroceria);   // hasta 3.500 kg
+  const tramos = ligero
+    ? [{hasta: 2, cada: 0}, {hasta: 6, cada: 24}, {hasta: 10, cada: 12}, {hasta: 999, cada: 6}]
+    : [{hasta: 4, cada: 0}, {hasta: 10, cada: 24}, {hasta: 999, cada: 12}];
+  // se avanza desde la matriculación hasta pasar de hoy
+  let fecha = new Date(alta), edad = 0, meses = 0, vueltas = 0;
+  const exento = tramos[0].hasta;
+  fecha.setFullYear(fecha.getFullYear() + exento);
+  while (fecha <= hoy && vueltas < 60){
+    edad = (fecha - alta) / (365.25 * 86400000);
+    meses = (tramos.find(t => edad < t.hasta) || tramos[tramos.length - 1]).cada || 12;
+    fecha.setMonth(fecha.getMonth() + meses);
+    vueltas++;
+  }
+  const dias = Math.round((fecha - hoy) / 86400000);
+  return {fecha, iso: aISO(fecha), dias, anios: Math.floor(anios),
+    periodo: ligero ? 'furgoneta' : 'turismo',
+    exento: anios < exento};
+}
+// La que manda: la guardada a mano; si no, la calculada
+function itvDe(c){
+  if (c?.itv_hasta){
+    const f = new Date(c.itv_hasta + 'T00:00');
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    return {fecha: f, iso: c.itv_hasta, dias: Math.round((f - hoy) / 86400000), manual: true};
+  }
+  const x = itvCalculada(c);
+  return x ? {...x, manual: false} : null;
+}
+function avisoITV(itv){
+  if (!itv) return '';
+  if (itv.exento) return `<span class="itv ok">ITV: exento hasta ${itv.fecha.toLocaleDateString('es-ES')}</span>`;
+  if (itv.dias < 0) return `<span class="itv mal">ITV caducada hace ${Math.abs(itv.dias)} días</span>`;
+  if (itv.dias <= 30) return `<span class="itv aviso">ITV en ${itv.dias} días</span>`;
+  if (itv.dias <= 60) return `<span class="itv aviso">ITV el ${itv.fecha.toLocaleDateString('es-ES')}</span>`;
+  return `<span class="itv ok">ITV hasta ${itv.fecha.toLocaleDateString('es-ES')}</span>`;
+}
+
 /* ═════════ coche ilustrado ═════════ */
 const CARROCERIAS = {berlina:'Berlina', hatchback:'Compacto', familiar:'Familiar', suv:'SUV', coupe:'Coupé', furgoneta:'Furgoneta', pickup:'Pick-up'};
 const FORMAS = {
@@ -796,14 +983,16 @@ function cocheSVG(c, run=false){
 }
 const placa = m => `<span class="placa"><span>${esc(m)}</span></span>`;
 function datosCoche(c){
-  return [c.anio, CARROCERIAS[c.carroceria], c.km ? Number(c.km).toLocaleString('es-ES') + ' km' : ''].filter(Boolean).map(esc).join(', ');
+  return [c.anio, CARROCERIAS[c.carroceria], COMBUSTIBLES[c.combustible],
+    c.km ? Number(c.km).toLocaleString('es-ES') + ' km' : ''].filter(Boolean).map(esc).join(', ');
 }
 function fichaCoche(c, run=false){
   return `<div class="escena">${cocheSVG(c, run)}</div>
   <div class="fila entre" style="margin-top:10px;align-items:flex-start">
     <div><h2 style="margin:0">${esc(c.marca)} ${esc(c.modelo)}</h2><div class="suave">${datosCoche(c)}</div></div>
-    ${placa(c.matricula)}
-  </div>`;
+    <div class="fila">${pegatina(distintivoDe(c))}${placa(c.matricula)}</div>
+  </div>
+  ${avisoITV(itvDe(c)) ? `<div style="margin-top:6px">${avisoITV(itvDe(c))}</div>` : ''}`;
 }
 
 /* ═════════ diálogo ═════════ */
@@ -821,42 +1010,138 @@ function dialogo(html, okTxt, onOk, okClase='pri', opts = {}){
     e.currentTarget.disabled = true;
     try { await onOk(d); d.close(); } catch(x){ toast(x.message, true); e.currentTarget.disabled = false; }
   };
-  if (opts.alAbrir) opts.alAbrir(d);
+  try { if (opts.alAbrir) opts.alAbrir(d); } catch(x){ console.error(x); }
   d.showModal();
   pintarFotos(d);
 }
 
 /* ═════════ cabecera y sesión ═════════ */
-const MENU_ADMIN = [['panel','Panel',()=>vPanel()],['ordenes','Órdenes',()=>vOrdenes()],
-  ['citas','Citas',()=>vCitas()],['avisos','Avisos',()=>vAvisos()],
-  ['coches','Coches',()=>vCoches()],['clientes','Clientes',()=>vClientes()],
-  ['personal','Personal',()=>vPersonal()],['turnos','Turnos',()=>vTurnos()],
-  ['historico','Histórico',()=>vHistorico()],['taller','Mi taller',()=>vTaller()]];
-const MENU_MEC = [['inicio','Mis coches',()=>mInicio()], ['taller','Todos los coches',()=>mTaller()],
-  ['turnos','Mis turnos',()=>mTurnos()]];
+// El menú va agrupado: cada grupo abre un desplegable con sus pantallas
+const MENU_ADMIN = [
+  {grupo: 'Taller', k: 'g-taller', items: [
+    ['panel', 'Panel', () => vPanel(), 'Los números del día'],
+    ['pizarra', 'Pizarra', () => vPizarra(), 'Pantalla grande para el taller'],
+    ['avisos', 'Avisos', () => vAvisos(), 'Incidencias y notas de los mecánicos'],
+    ['seguimiento', 'Seguimiento', () => vSeguimiento(), 'ITV que vencen y coches parados'],
+  ]},
+  {grupo: 'Trabajo', k: 'g-trabajo', items: [
+    ['recepcion', 'Recepción', () => vRecepcion(), 'Dar entrada a un coche'],
+    ['ordenes', 'Órdenes', () => vOrdenes(), 'Coches en el taller'],
+    ['citas', 'Citas', () => vCitas(), 'Agenda de la semana'],
+  ]},
+  {grupo: 'Fichas', k: 'g-fichas', items: [
+    ['coches', 'Coches', () => vCoches(), 'Fichas y su historial'],
+    ['clientes', 'Clientes', () => vClientes(), 'Datos de contacto'],
+  ]},
+  {grupo: 'Equipo', k: 'g-equipo', items: [
+    ['personal', 'Personal', () => vPersonal(), 'Mecánicos y oficina'],
+    ['turnos', 'Turnos', () => vTurnos(), 'Cuadrante, vacaciones y bajas'],
+  ]},
+  {grupo: 'Gestión', k: 'g-gestion', items: [
+    ['historico', 'Histórico', () => vHistorico(), 'Turnos, reparaciones y jornada'],
+    ['comparativa', 'Comparativa', () => vEstadisticas(), 'Rendimiento por mes y mecánico'],
+    ['taller', 'Mi taller', () => vTaller(), 'Datos, logo, checklists y copia'],
+  ]},
+];
+const MENU_MEC = [
+  {grupo: 'Trabajo', k: 'g-trabajo', items: [
+    ['inicio', 'Mis coches', () => mInicio(), 'Lo que tengo asignado'],
+    ['taller', 'Todos los coches', () => mTaller(), 'Quién lleva cada coche'],
+  ]},
+  {grupo: 'Mi jornada', k: 'g-jornada', items: [
+    ['turnos', 'Mis turnos', () => mTurnos(), 'Mi cuadrante y sus comentarios'],
+  ]},
+];
+const menuActual = () => yo.rol === 'mecanico' ? MENU_MEC : MENU_ADMIN;
+const buscarPantalla = k => {
+  for (const g of menuActual()){ const it = g.items.find(i => i[0] === k); if (it) return {grupo: g, item: it}; }
+  return null;
+};
+
+const TEMAS = {auto: 'Automático', claro: 'Claro', oscuro: 'Oscuro'};
+function aplicarTema(t){
+  const elegido = t || localStorage.getItem('taller_tema') || 'auto';
+  const oscuro = elegido === 'oscuro' ||
+    (elegido === 'auto' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.tema = oscuro ? 'oscuro' : 'claro';
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', oscuro ? '#0D1318' : '#1B2733');
+  try { localStorage.setItem('taller_tema', elegido); } catch(e){}
+  return elegido;
+}
+try { aplicarTema(); } catch(e){}
+window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', () => {
+  if ((localStorage.getItem('taller_tema') || 'auto') === 'auto') aplicarTema('auto');
+});
+
+function cerrarMenus(){
+  document.querySelectorAll('#nav .grupo.abierto').forEach(g => {
+    g.classList.remove('abierto');
+    g.querySelector('.cab-grupo')?.setAttribute('aria-expanded', 'false');
+  });
+}
+document.addEventListener('click', e => { if (!e.target.closest('#nav .grupo')) cerrarMenus(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarMenus(); });
+
 function cabecera(){
   $('#top').hidden = false;
   $('#logo').innerHTML = `${TALLER?.logo ? `<img class="logo-img" src="${esc(TALLER.logo)}" alt="">` : ''}
     <span>${esc(yo.taller)}<small>${esc(yo.nombre)}, ${yo.rol === 'admin' ? 'oficina' : 'mecánico'}</small></span>`;
-  const menu = yo.rol === 'admin' ? MENU_ADMIN : MENU_MEC;
-  $('#nav').innerHTML = (yo.rol !== 'mecanico'
+  $('#nav').innerHTML = menuActual().map(g => `<div class="grupo" data-g="${g.k}">
+      <button class="cab-grupo" aria-expanded="false">${esc(g.grupo)}
+        ${g.items.some(i => i[0] === 'avisos') ? '<i class="pin" hidden></i>' : ''}
+        <svg width="10" height="7" viewBox="0 0 10 7" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <div class="desplegable">${g.items.map(([k, t, , ayuda]) =>
+        `<button data-k="${k}"><strong>${esc(t)}</strong>${ayuda ? `<span>${esc(ayuda)}</span>` : ''}</button>`).join('')}</div>
+    </div>`).join('')
+    + (yo.rol !== 'mecanico'
       ? '<input id="buscador" type="search" placeholder="Buscar matrícula, cliente, orden" aria-label="Buscar">' : '')
-    + menu.map(([k,t]) => `<button data-k="${k}">${t}${k === 'avisos' ? '<i class="pin" hidden></i>' : ''}</button>`).join('')
-    + `<button data-k="salir">Salir</button>`;
+    + `<button class="suelto" id="btn-tema" title="Cambiar entre claro y oscuro" aria-label="Cambiar el tema"></button>`
+    + `<button class="suelto" data-k="salir">Salir</button>`;
+  const pintaTema = () => {
+    const t = localStorage.getItem('taller_tema') || 'auto';
+    const esOscuro = document.documentElement.dataset.tema === 'oscuro';
+    $('#btn-tema').innerHTML = esOscuro
+      ? '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 .8v2M8 13.2v2M.8 8h2M13.2 8h2M2.9 2.9l1.4 1.4M11.7 11.7l1.4 1.4M13.1 2.9l-1.4 1.4M4.3 11.7l-1.4 1.4"/></g></svg>'
+      : '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 9.6A6 6 0 0 1 6.4 2.5 6 6 0 1 0 13.5 9.6z" fill="currentColor"/></svg>';
+    $('#btn-tema').title = `Tema: ${TEMAS[t].toLowerCase()}. Pulsa para cambiarlo`;
+  };
+  $('#btn-tema').onclick = () => {
+    const orden = ['auto', 'claro', 'oscuro'];
+    const t = localStorage.getItem('taller_tema') || 'auto';
+    const nuevo = orden[(orden.indexOf(t) + 1) % orden.length];
+    aplicarTema(nuevo); pintaTema();
+    toast(`Tema: ${TEMAS[nuevo].toLowerCase()}`);
+  };
+  pintaTema();
   const caja = $('#buscador');
   if (caja) caja.onkeydown = e => {
     if (e.key !== 'Enter') return;
     const t = caja.value.trim();
     if (t.length < 2) return toast('Escribe al menos dos letras', true);
+    cerrarMenus();
     vBuscar(t).catch(x => toast(x.message, true));
   };
-  $('#nav').querySelectorAll('button').forEach(b => b.onclick = () => {
+  $('#nav').querySelectorAll('.cab-grupo').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const g = b.closest('.grupo'), abierto = g.classList.contains('abierto');
+    cerrarMenus();
+    if (!abierto){ g.classList.add('abierto'); b.setAttribute('aria-expanded', 'true'); }
+  });
+  $('#nav').querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
+    cerrarMenus();
     if (b.dataset.k === 'salir') return salirConAviso();
-    menu.find(m => m[0] === b.dataset.k)[2]().catch(x => toast(x.message, true));
+    const p = buscarPantalla(b.dataset.k);
+    if (p) p.item[2]().catch(x => toast(x.message, true));
   });
 }
 function marcar(k){
-  $('#nav').querySelectorAll('button').forEach(b => b.dataset.k === k ? b.setAttribute('aria-current','page') : b.removeAttribute('aria-current'));
+  st.pantalla = k;
+  const p = buscarPantalla(k);
+  $('#nav').querySelectorAll('[data-k]').forEach(b =>
+    b.dataset.k === k ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  $('#nav').querySelectorAll('.grupo').forEach(g =>
+    g.classList.toggle('activo', !!p && g.dataset.g === p.grupo.k));
 }
 
 async function salirConAviso(){
@@ -1134,7 +1419,9 @@ function panelDocumentos(docs){
   </div>`;
 }
 function activarDocumentos(ordenId, recargar){
-  $('#doc-file').onchange = async e => {
+  const inp = $('#doc-file');
+  if (!inp) return;
+  inp.onchange = async e => {
     const f = e.target.files[0]; e.target.value = '';
     if (!f) return;
     if (f.size > 10e6) return toast('El archivo no puede pasar de 10 MB', true);
@@ -1246,15 +1533,28 @@ async function vOrdenes(){
 
 async function vOrden(id){
   marcar('ordenes');
-  const [o, mecs, mensajes, docs] = await Promise.all([DB.orden(id), DB.mecanicos(),
-    DB.mensajes(id).catch(() => []), DB.documentos(id).catch(() => [])]);
+  const [o, mecs, mensajes, docs, exp, firmas] = await Promise.all([DB.orden(id), DB.mecanicos(),
+    DB.mensajes(id).catch(() => []), DB.documentos(id).catch(() => []),
+    rpc('documentos_orden', {p_orden: id}).catch(() => ({})),
+    rpc('firmas_orden', {p_orden: id}).catch(() => [])]);
+  o.numero = exp.orden?.numero; o.fase = exp.orden?.fase || 'reparacion';
+  o.cliente = exp.cliente || null; o.presupuestos = exp.presupuestos || []; o.reparacion = exp.reparacion || null;
   const run = o.en_marcha;
   app(`<p><button class="lnk" id="volver">Volver a órdenes</button></p>
   <div class="dos">
     <section class="pila">
       <div class="panel">${fichaCoche(o.coche, run)}</div>
       <div class="panel">
-        <div class="fila entre"><h2 style="margin:0">Orden ${o.id}</h2>${badge(o.estado)}</div>
+        <div class="fila entre"><h2 style="margin:0">${o.numero ? `Orden nº ${o.numero}` : `Orden ${o.id}`}</h2>${badge(o.estado)}</div>
+        <div class="numeros">${[
+          ['Orden', o.numero, 'recepcion'],
+          ['Presupuesto', o.presupuestos[0]?.numero, 'presupuesto'],
+          ['Reparación', o.reparacion?.numero, 'reparacion'],
+        ].map(([t, n, f]) => `<span class="numero${o.fase === f ? ' aqui' : ''}${n ? '' : ' vacio'}">
+          <small>${t}</small><strong>${n ? 'nº ' + n : '—'}</strong></span>`).join('')}</div>
+        ${o.cliente ? `<div class="sello" style="margin-top:10px"><strong>${esc(o.cliente.nombre)}</strong>${
+          o.cliente.telefono ? `, ${esc(o.cliente.telefono)}` : ''}${
+          o.cliente.direccion ? `<div class="suave">${esc(o.cliente.direccion)}${zona(o.cliente) ? ', ' + esc(zona(o.cliente)) : ''}</div>` : ''}</div>` : ''}
         <label style="margin-top:10px">Tipo de revisión<input id="o-tipo" value="${esc(o.tipo_revision)}"></label>
         <label style="margin-top:8px">Notas para el mecánico<textarea id="o-notas" rows="2">${esc(o.notas || '')}</textarea></label>
         <p class="suave">Creada el ${fmtFecha(o.creado)}${o.cerrado ? `, cerrada el ${fmtFecha(o.cerrado)}` : ''}</p>
@@ -1273,9 +1573,10 @@ async function vOrden(id){
     </section>
     <section class="pila">
       ${panelChecklist(o, 'inicial', 'admin', id)}
+      ${panelPresupuestos(o)}
       ${bloqueTrabajo(o, 'admin')}
       ${panelChecklist(o, 'final', 'admin', id)}
-      ${panelDocumentos(docs)}
+      ${panelFirmas(o, firmas)}
       ${panelDocumentos(docs)}
       ${hiloMensajes(id, mensajes)}
     </section>
@@ -1283,6 +1584,8 @@ async function vOrden(id){
   $('#volver').onclick = () => vOrdenes();
   activarHilo(id, () => vOrden(id));
   activarDocumentos(id, () => vOrden(id));
+  accionesPresupuestos(o, () => vOrden(id));
+  activarFirmas(o, () => vOrden(id));
   $('#o-informe').onclick = () => vInforme(id);
   $('#o-borrar').onclick = () => {
     dialogo(`<h2>Eliminar la orden ${o.id}</h2>
@@ -1367,6 +1670,19 @@ function camposCoche(c){
     <label>Carrocería<select name="carroceria">${Object.entries(CARROCERIAS).map(([k,v]) => `<option value="${k}" ${c.carroceria === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
     <label>Color<input name="color" type="color" value="${esc(c.color || '#3A6EA5')}"></label>
     <label>Bastidor (VIN)<input name="vin" maxlength="17" value="${esc(c.vin || '')}"></label>
+    <label>Combustible<select name="combustible"><option value="">Sin indicar</option>
+      ${Object.entries(COMBUSTIBLES).map(([k, v]) => `<option value="${k}" ${c.combustible === k ? 'selected' : ''}>${v}</option>`).join('')}
+    </select></label>
+    <label>Fecha de matriculación<input name="matriculacion" type="date" value="${esc(c.matriculacion || '')}"></label>
+    <label>ITV válida hasta<input name="itv_hasta" type="date" value="${esc(c.itv_hasta || '')}"></label>
+  </div>
+  <div class="distintivo-zona" id="itv-zona"><span class="suave">ITV</span><span id="itv-prev"></span>
+    <button type="button" class="btn sec mini-btn" data-itv-calc>Usar la calculada</button></div>
+  <div class="distintivo-zona">
+    <span class="suave">Distintivo ambiental</span>
+    <span id="dist-prev"></span>
+    <button type="button" class="btn sec mini-btn" data-dist>Corregir a mano</button>
+    <input type="hidden" name="distintivo" value="${esc(c.distintivo || '')}">
   </div>
   <label>Notas del coche<input name="notas" value="${esc(c.notas || '')}"></label>
   <label>Cliente<select name="cliente_id"><option value="">Sin cliente</option>
@@ -1377,6 +1693,8 @@ function camposCoche(c){
 function leerCoche(root){
   const g = n => root.querySelector(`[name=${n}]`).value.trim();
   const c = {cliente_id: g('cliente_id') || null,
+    combustible: g('combustible') || null, matriculacion: g('matriculacion') || null,
+    distintivo: g('distintivo') || null, itv_hasta: g('itv_hasta') || null,
     matricula:g('matricula'), marca:g('marca'), modelo:g('modelo'), anio:g('anio') ? +g('anio') : null,
     km:g('km') ? +g('km') : null, carroceria:g('carroceria'), color:g('color'), vin:g('vin') || null, notas:g('notas') || null};
   if (!c.matricula || !c.marca || !c.modelo) throw new Error('Pon matrícula, marca y modelo');
@@ -1384,6 +1702,55 @@ function leerCoche(root){
 }
 function enlazarPreview(root, prev){
   combosCoche(root);
+  const zonaDist = root.querySelector('#dist-prev');
+  if (zonaDist){
+    const pinta = () => {
+      const g = n => root.querySelector(`[name=${n}]`)?.value.trim() || '';
+      const d = distintivoDe({combustible: g('combustible'), matriculacion: g('matriculacion'),
+        anio: g('anio'), distintivo: g('distintivo')});
+      zonaDist.innerHTML = d?.codigo
+        ? `${pegatina(d)} <span class="suave">${esc(d.manual ? DISTINTIVOS[d.codigo].nombre + ', puesta a mano' : d.porque || DISTINTIVOS[d.codigo].nombre)}${
+            d.seguro === false ? '. Pon la fecha exacta para asegurarlo' : ''}</span>`
+        : '<span class="suave">Indica el combustible y la fecha para calcularlo</span>';
+    };
+    const zonaItv = root.querySelector('#itv-prev');
+    const pintaItv = () => {
+      const g = n => root.querySelector(`[name=${n}]`)?.value.trim() || '';
+      const c = {matriculacion: g('matriculacion'), carroceria: g('carroceria'), itv_hasta: g('itv_hasta')};
+      const itv = itvDe(c), calc = itvCalculada(c);
+      zonaItv.innerHTML = itv
+        ? `${avisoITV(itv)} <span class="suave">${itv.manual ? 'puesta a mano' :
+            `calculada, ${calc.periodo === 'furgoneta' ? 'furgoneta' : 'turismo'} de ${calc.anios} años`}</span>`
+        : '<span class="suave">Pon la fecha de matriculación para calcularla</span>';
+      const bot = root.querySelector('[data-itv-calc]');
+      if (bot) bot.hidden = !calc || (!!g('itv_hasta') && g('itv_hasta') === calc.iso) || calc.exento;
+    };
+    root.querySelector('[data-itv-calc]')?.addEventListener('click', () => {
+      const calc = itvCalculada({matriculacion: root.querySelector('[name=matriculacion]')?.value,
+        carroceria: root.querySelector('[name=carroceria]')?.value});
+      if (!calc) return toast('Pon antes la fecha de matriculación', true);
+      root.querySelector('[name=itv_hasta]').value = calc.iso;
+      pintaItv();
+    });
+    root.addEventListener('input', () => { pinta(); pintaItv(); });
+    root.addEventListener('change', () => { pinta(); pintaItv(); });
+    pintaItv();
+    root.querySelector('[data-dist]').onclick = () => {
+      const campo = root.querySelector('[name=distintivo]');
+      dialogo(`<h2>Distintivo ambiental</h2>
+        <p>La app lo calcula con las reglas de la DGT, pero la etiqueta oficial manda. Si no coincide, ponla aquí.</p>
+        <div class="fila" style="margin-top:12px">${Object.entries(DISTINTIVOS).map(([k, v]) =>
+          `<button type="button" class="btn ${campo.value === k ? 'pri' : 'sec'}" data-poner="${k}">
+            ${pegatina({codigo: k, seguro: true})} ${esc(v.nombre)}</button>`).join('')}</div>
+        <p style="margin-top:12px"><button type="button" class="btn sec" data-poner="">Volver al cálculo automático</button></p>`,
+        'Cerrar', async () => {}, 'sec', {cancel: null});
+      $('#dlg').querySelectorAll('[data-poner]').forEach(b => b.onclick = () => {
+        campo.value = b.dataset.poner;
+        $('#dlg').close(); pinta();
+      });
+    };
+    pinta();
+  }
   root.querySelector('[data-ocr]')?.addEventListener('click', () => leerMatricula(root.querySelector('[name=matricula]')));
   root.querySelector('[data-cli-nuevo]')?.addEventListener('click', () => {
     dlgCliente(null, async id => {
@@ -2109,7 +2476,11 @@ function filaCk(puntos, ck, cliente){
 }
 async function vInforme(id, cliente = false){
   marcar('ordenes'); st.refresh = null;
-  const [o, avisos] = await Promise.all([DB.orden(id), DB.avisosDeOrden(id).catch(() => [])]);
+  const [o, avisos, exp, firmas] = await Promise.all([DB.orden(id), DB.avisosDeOrden(id).catch(() => []),
+    rpc('documentos_orden', {p_orden: id}).catch(() => ({})), rpc('firmas_orden', {p_orden: id}).catch(() => [])]);
+  const firma = t => firmas.find(f => f.tipo === t);
+  const nOrden = exp.orden?.numero, nPre = (exp.presupuestos || []).find(x => x.estado === 'aceptado')?.numero
+    ?? (exp.presupuestos || [])[0]?.numero, nRep = exp.reparacion?.numero, cli = exp.cliente;
   const tot = o.sesiones.reduce((a, x) => a + ((x.fin || srvAhora()) - x.inicio), 0);
   const mecs = [...new Set(o.sesiones.map(x => x.mecanico))];
   const deCk = ck => ck ? Object.values(ck.datos.items || {}).flatMap(v => v.fotos || []) : [];
@@ -2150,14 +2521,18 @@ async function vInforme(id, cliente = false){
         </div>
       </header>
       <h1>Informe de reparación</h1>
-      <p class="suave">Orden ${o.id}, ${esc(o.tipo_revision)}. Entrada el ${fmtFecha(o.creado)}${o.cerrado ? `, salida el ${fmtFecha(o.cerrado)}` : ''}.</p>
+      <p class="suave">${[nRep ? `Reparación nº ${nRep}` : null, nOrden ? `orden nº ${nOrden}` : `orden ${o.id}`,
+        nPre ? `presupuesto nº ${nPre}` : null].filter(Boolean).join(' · ')}</p>
+      <p class="suave">${esc(o.tipo_revision)}. Entrada el ${fmtFecha(o.creado)}${o.cerrado ? `, salida el ${fmtFecha(o.cerrado)}` : ''}.</p>
+      ${cli ? `<p>${esc(cli.nombre)}${cli.dni ? ` · ${esc(cli.dni)}` : ''}${cli.telefono ? ` · ${esc(cli.telefono)}` : ''}${
+        cli.direccion ? `<br><span class="suave">${esc(cli.direccion)}${zona(cli) ? ', ' + esc(zona(cli)) : ''}</span>` : ''}</p>` : ''}
 
       <div class="inf-coche">
         <div>
           <h2 style="border:0;margin:0">${esc(o.coche.marca)} ${esc(o.coche.modelo)}</h2>
           <p class="suave">${datosCoche(o.coche)}${o.coche.vin ? `<br>Bastidor: ${esc(o.coche.vin)}` : ''}</p>
         </div>
-        ${placa(o.coche.matricula)}
+        <div class="fila">${pegatina(distintivoDe(o.coche))}${placa(o.coche.matricula)}</div>
       </div>
 
       <h2>Reparaciones</h2>
@@ -2204,7 +2579,9 @@ async function vInforme(id, cliente = false){
       <div class="firmas">
         ${cliente ? '' : '<div>Técnico<span></span></div>'}
         <div>Control<span></span></div>
-        <div>Cliente<span></span></div>
+        <div>Cliente${firma('entrega') ? `<span class="firmada"><img src="${esc(firma('entrega').imagen)}" alt="Firma del cliente"></span>
+          <small>${esc(firma('entrega').firmante || '')}${firma('entrega').dni ? `, ${esc(firma('entrega').dni)}` : ''} · ${fmtFecha(ts(firma('entrega').creado))}</small>`
+          : '<span></span>'}</div>
       </div>
       <p class="suave" style="margin-top:14px">Documento generado el ${fmtFecha(srvAhora())}.</p>
     </div>`);
@@ -2348,7 +2725,7 @@ async function vCoche(id){
       <section class="pila">
         <div class="panel">${fichaCoche(c)}
           ${(() => { const cl = clientes.find(x => x.id === c.cliente_id);
-            return cl ? `<p style="margin-top:8px"><strong>${esc(cl.nombre)}</strong>${cl.telefono ? `, ${esc(cl.telefono)}` : ''}${cl.email ? `<br><span class="suave">${esc(cl.email)}</span>` : ''}</p>`
+            return cl ? `<p style="margin-top:8px"><strong>${esc(cl.nombre)}</strong>${cl.telefono ? `, ${esc(cl.telefono)}` : ''}${cl.email ? `<br><span class="suave">${esc(cl.email)}</span>` : ''}${cl.direccion ? `<br><span class="suave">${esc(cl.direccion)}${zona(cl) ? ', ' + esc(zona(cl)) : ''}</span>` : ''}</p>`
               : '<p class="suave" style="margin-top:8px">Sin cliente asignado</p>'; })()}
           ${c.vin ? `<p class="suave">Bastidor: ${esc(c.vin)}</p>` : ''}
           ${c.notas ? `<p>${esc(c.notas)}</p>` : ''}
@@ -2397,6 +2774,8 @@ async function vPanel(){
       ${kpi(d.en_marcha, 'con el tiempo en marcha', 'ordenes')}
       ${kpi(d.sin_checklist, 'sin checklist de entrada', 'ordenes')}
       ${kpi(d.citas_hoy, 'citas para hoy', 'citas')}
+      ${kpi(d.itv_pronto ?? 0, 'ITV en 60 días', 'seguimiento')}
+      ${kpi(d.parados ?? 0, 'coches parados', 'seguimiento')}
       ${kpi(d.avisos, 'avisos sin leer', 'avisos')}
       ${kpi(d.cerradas_mes, 'coches entregados este mes')}
       ${kpi(d.reparaciones_mes, 'reparaciones este mes')}
@@ -2439,7 +2818,7 @@ async function vPanel(){
   };
   on('[data-ir]', 'click', e => {
     const k = e.currentTarget.dataset.ir;
-    ({ordenes: vOrdenes, citas: vCitas, avisos: vAvisos})[k]();
+    ({ordenes: vOrdenes, citas: vCitas, avisos: vAvisos, seguimiento: vSeguimiento})[k]();
   });
   st.refresh = vPanel;
 }
@@ -2553,9 +2932,11 @@ async function vClientes(){
   const gente = await DB.clientes();
   app(`<div class="fila cab"><h1>Clientes</h1><button class="btn pri" id="cl-nuevo">Nuevo cliente</button></div>
     ${gente.length ? `<div class="panel tabla"><table>
-      <thead><tr><th>Nombre</th><th>Teléfono</th><th>Email</th><th>DNI o CIF</th><th>Coches</th><th></th></tr></thead>
-      <tbody>${gente.map(c => `<tr><td>${esc(c.nombre)}</td><td>${esc(c.telefono || '')}</td>
-        <td>${esc(c.email || '')}</td><td>${esc(c.dni || '')}</td><td>${c.coches?.[0]?.count ?? 0}</td>
+      <thead><tr><th>Nombre</th><th>Teléfono</th><th>Dirección</th><th>DNI o CIF</th><th>Coches</th><th></th></tr></thead>
+      <tbody>${gente.map(c => `<tr><td>${esc(c.nombre)}${c.email ? `<div class="suave">${esc(c.email)}</div>` : ''}</td>
+        <td>${esc(c.telefono || '')}</td>
+        <td>${esc(c.direccion || '')}${zona(c) ? `<div class="suave">${esc(zona(c))}</div>` : ''}</td>
+        <td>${esc(c.dni || '')}</td><td>${c.coches?.[0]?.count ?? 0}</td>
         <td class="derecha"><button class="btn sec mini-btn" data-cl="${c.id}">Editar</button></td></tr>`).join('')}</tbody></table></div>`
     : '<div class="panel vacio"><p>Todavía no hay clientes. Se pueden crear aquí o al dar de alta un coche.</p></div>'}`);
   $('#cl-nuevo').onclick = () => dlgCliente(null, () => vClientes());
@@ -2570,17 +2951,480 @@ function dlgCliente(c, despues){
         <label>DNI o CIF<input id="cl-dni" value="${esc(c?.dni || '')}"></label>
       </div>
       <label>Email<input id="cl-email" type="email" value="${esc(c?.email || '')}"></label>
+      <label>Dirección<input id="cl-dir" value="${esc(c?.direccion || '')}" placeholder="Calle y número"></label>
+      <div class="grid" style="margin:0">
+        <label>Código postal<input id="cl-cp" inputmode="numeric" maxlength="5" value="${esc(c?.cp || '')}"></label>
+        <label>Población<input id="cl-pob" value="${esc(c?.poblacion || '')}"></label>
+        <label>Provincia<input id="cl-prov" value="${esc(c?.provincia || '')}"></label>
+      </div>
       <label>Notas<input id="cl-notas" value="${esc(c?.notas || '')}"></label>
     </div>`, 'Guardar', async d => {
       const id = await rpc('guardar_cliente', {p_id: c ? c.id : null, p_nombre: d.querySelector('#cl-nom').value,
         p_telefono: d.querySelector('#cl-tel').value, p_email: d.querySelector('#cl-email').value,
-        p_dni: d.querySelector('#cl-dni').value, p_notas: d.querySelector('#cl-notas').value});
+        p_dni: d.querySelector('#cl-dni').value, p_notas: d.querySelector('#cl-notas').value,
+        p_direccion: d.querySelector('#cl-dir').value, p_cp: d.querySelector('#cl-cp').value,
+        p_poblacion: d.querySelector('#cl-pob').value, p_provincia: d.querySelector('#cl-prov').value});
       toast('Cliente guardado'); despues(id);
     }, 'pri', c ? {extra: {txt: 'Eliminar', clase: 'peligro', fn: () => {
       dialogo('<h2>Eliminar cliente</h2><p>Sus coches se quedan, pero sin cliente asignado.</p>', 'Eliminar', async () => {
         await rpc('borrar_cliente', {p_id: c.id}); toast('Cliente eliminado'); despues(null);
       }, 'peligro');
     }}} : {});
+}
+
+/* ═════════ ADMIN: presupuestos ═════════ */
+const EST_PRE = {borrador: 'Borrador', enviado: 'Enviado', aceptado: 'Aceptado', rechazado: 'Rechazado'};
+const eur = n => Number(n || 0).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
+
+function panelPresupuestos(o){
+  const abierta = o.estado === 'abierta';
+  const aceptado = o.presupuestos.find(x => x.estado === 'aceptado');
+  return `<div class="panel" id="presupuestos">
+    <div class="fila entre"><h2 style="margin:0">Presupuestos</h2>
+      ${abierta ? '<button class="btn pri" id="pre-nuevo">Nuevo presupuesto</button>' : ''}</div>
+    ${o.presupuestos.length ? o.presupuestos.map(x => `<div class="pre">
+      <div class="fila entre">
+        <div><strong>Presupuesto nº ${x.numero}</strong>
+          <div class="suave">${fmtFecha(ts(x.creado))}, válido ${x.validez_dias} días</div></div>
+        <span class="estado e-${x.estado === 'rechazado' ? 'cancelada' : x.estado === 'aceptado' ? 'finalizada' : 'abierta'}">${EST_PRE[x.estado]}</span>
+      </div>
+      <div class="pre-lineas">${(x.lineas || []).map(l => `<div class="pieza">
+        <span>${esc(l.concepto)}${l.referencia ? ` <span class="suave">${esc(l.referencia)}</span>` : ''}
+          <span class="suave">${l.tipo === 'obra' ? `${l.cantidad} min` : `×${l.cantidad}`}</span></span>
+        <span>${eur(l.importe)}</span></div>`).join('')}</div>
+      <div class="fila entre" style="margin-top:8px">
+        <span class="suave">Obra ${eur(x.importe_obra)} · Piezas ${eur(x.importe_piezas)}</span>
+        <strong>Total ${eur(x.total)}</strong>
+      </div>
+      ${x.notas ? `<div class="suave">${esc(x.notas)}</div>` : ''}
+      <div class="fila" style="margin-top:10px">
+        <button class="btn sec mini-btn" data-pre-ver="${x.id}">Imprimir</button>
+        ${x.estado !== 'aceptado' && abierta ? `<button class="btn sec mini-btn" data-pre-edit="${x.id}">Editar</button>` : ''}
+        ${x.estado === 'borrador' && abierta ? `<button class="btn sec mini-btn" data-pre-est="${x.id}:enviado">Marcar enviado</button>` : ''}
+        ${x.estado !== 'aceptado' && abierta ? `<button class="btn ok mini-btn" data-pre-aceptar="${x.id}">Aceptar y pasar a reparación</button>` : ''}
+        ${['borrador','enviado'].includes(x.estado) && abierta ? `<button class="btn sec mini-btn" data-pre-est="${x.id}:rechazado">Rechazado</button>` : ''}
+        ${x.estado !== 'aceptado' && abierta ? `<button class="btn peligro mini-btn" data-pre-borrar="${x.id}">Quitar</button>` : ''}
+      </div>
+    </div>`).join('') : '<p class="suave" style="margin-top:8px">Sin presupuestos. Se puede trabajar sin él, pero deja constancia de lo acordado.</p>'}
+    ${abierta && !o.reparacion ? `<p style="margin-top:12px" class="fila entre">
+      <span class="suave">${o.presupuestos.length ? 'O pasa a reparación sin presupuesto.' : 'Si el cliente no quiere presupuesto, pasa directo a reparación.'}</span>
+      <button class="btn sec" id="pre-saltar">Pasar a reparación sin presupuesto</button></p>` : ''}
+  </div>`;
+}
+
+function accionesPresupuestos(o, recargar){
+  const leer = d => [...d.querySelectorAll('.pre-fila')].map(f => {
+    const precio = f.querySelector('.l-precio').value;
+    return {tipo: f.querySelector('.l-tipo').value, concepto: f.querySelector('.l-con').value.trim(),
+      referencia: f.querySelector('.l-ref').value.trim() || null,
+      cantidad: +f.querySelector('.l-cant').value || 0, precio: precio === '' ? null : +precio};
+  }).filter(l => l.concepto);
+  const editor = pre => {
+    const lineas = pre ? pre.lineas.map(l => ({...l})) : [];
+    const fila = (l, i) => `<div class="pre-fila" data-i="${i}">
+      <label>Tipo<select class="l-tipo">
+        <option value="obra" ${l.tipo === 'obra' ? 'selected' : ''}>Mano de obra</option>
+        <option value="pieza" ${l.tipo === 'pieza' ? 'selected' : ''}>Pieza</option></select></label>
+      <label>Concepto<input class="l-con" value="${esc(l.concepto || '')}"></label>
+      <label>Referencia<input class="l-ref" value="${esc(l.referencia || '')}"></label>
+      <label class="l-cant-lab">${l.tipo === 'obra' ? 'Minutos' : 'Cantidad'}<input class="l-cant" type="number" min="0" step="0.01" value="${l.cantidad ?? 1}"></label>
+      <label>${l.tipo === 'obra' ? '€/hora' : '€/unidad'}<input class="l-precio" type="number" min="0" step="0.01" value="${l.precio ?? ''}" placeholder="${l.tipo === 'obra' ? (TALLER?.precio_hora ?? '') : ''}"></label>
+      <button type="button" class="btn peligro mini-btn l-quitar">Quitar</button>
+    </div>`;
+    dialogo(`<h2>${pre ? `Presupuesto nº ${pre.numero}` : 'Nuevo presupuesto'}</h2>
+      <p class="suave">En mano de obra se ponen minutos y se cobra a ${TALLER?.precio_hora ? eur(TALLER.precio_hora) + '/h' : 'la tarifa del taller'}.</p>
+      <div id="pre-lineas">${lineas.map(fila).join('')}</div>
+      <div class="fila" style="margin-top:8px"><button type="button" class="btn sec mini-btn" id="pre-add">Añadir línea</button>
+        <button type="button" class="btn sec mini-btn" id="pre-desde">Desde las reparaciones y piezas</button></div>
+      <div class="grid" style="margin-top:10px">
+        <label>Validez (días)<input id="pre-validez" type="number" min="1" value="${pre?.validez_dias ?? 15}"></label>
+      </div>
+      <label>Notas<textarea id="pre-notas" rows="2">${esc(pre?.notas || '')}</textarea></label>
+      <p id="pre-total" class="derecha"></p>`, 'Guardar', async d => {
+        const cuerpo = leer(d);
+        if (!cuerpo.length) throw new Error('Añade al menos una línea');
+        const r = await rpc('guardar_presupuesto', {p_id: pre ? pre.id : null, p_orden: o.id, p_lineas: cuerpo,
+          p_validez: +d.querySelector('#pre-validez').value || 15, p_notas: d.querySelector('#pre-notas').value});
+        toast(`Presupuesto nº ${r.numero}, ${eur(r.total)}`); recargar();
+      }, 'pri', {alAbrir: d => {
+        const zona = d.querySelector('#pre-lineas');
+        if (!lineas.length) zona.insertAdjacentHTML('beforeend', fila({tipo: 'obra', cantidad: 60}, 0));
+        const total = () => {
+          let obra = 0, pie = 0;
+          leer(d).forEach(l => {
+            const precio = l.precio ?? (l.tipo === 'obra' ? Number(TALLER?.precio_hora || 0) : 0);
+            if (l.tipo === 'obra') obra += l.cantidad / 60 * precio; else pie += l.cantidad * precio;
+          });
+          const base = obra + pie, iva = base * Number(TALLER?.iva ?? 21) / 100;
+          d.querySelector('#pre-total').innerHTML = `Obra ${eur(obra)} · Piezas ${eur(pie)} · Base ${eur(base)} · IVA ${eur(iva)} · <strong>Total ${eur(base + iva)}</strong>`;
+        };
+        d.addEventListener('input', e => {
+          if (e.target.classList.contains('l-tipo')){
+            const f = e.target.closest('.pre-fila'), obra = e.target.value === 'obra';
+            f.querySelector('.l-cant-lab').childNodes[0].nodeValue = obra ? 'Minutos' : 'Cantidad';
+            f.querySelector('.l-precio').previousSibling;
+          }
+          total();
+        });
+        d.addEventListener('click', e => {
+          if (e.target.classList.contains('l-quitar')){ e.target.closest('.pre-fila').remove(); total(); }
+        });
+        d.querySelector('#pre-add').onclick = () => { zona.insertAdjacentHTML('beforeend', fila({tipo: 'pieza', cantidad: 1}, zona.children.length)); total(); };
+        d.querySelector('#pre-desde').onclick = () => {
+          zona.innerHTML = '';
+          o.tareas.forEach(t => zona.insertAdjacentHTML('beforeend', fila({tipo: 'obra', concepto: t.titulo, cantidad: Math.round(t.seg_asignados / 60)}, zona.children.length)));
+          o.piezas.forEach(x => zona.insertAdjacentHTML('beforeend', fila({tipo: 'pieza', concepto: x.descripcion, referencia: x.referencia, cantidad: x.cantidad, precio: x.precio}, zona.children.length)));
+          if (!zona.children.length) zona.insertAdjacentHTML('beforeend', fila({tipo: 'obra', cantidad: 60}, 0));
+          total();
+        };
+        total();
+      }});
+  };
+  $('#pre-nuevo')?.addEventListener('click', () => editor(null));
+  $('#pre-saltar')?.addEventListener('click', () => {
+    dialogo('<h2>Pasar a reparación</h2><p>Se saca el número de reparación sin presupuesto previo.</p>',
+      'Sacar número', async () => {
+        const r = await rpc('crear_reparacion', {p_orden: o.id, p_presupuesto: null, p_tareas: [], p_notas: null});
+        toast(`Reparación nº ${r.numero}`); recargar();
+      });
+  });
+  on('[data-pre-edit]', 'click', e => editor(o.presupuestos.find(x => x.id === +e.currentTarget.dataset.preEdit)));
+  on('[data-pre-ver]', 'click', e => vPresupuesto(o.id, +e.currentTarget.dataset.preVer));
+  on('[data-pre-est]', 'click', accion(async (e, b) => {
+    const [id, est] = b.dataset.preEst.split(':');
+    await rpc('decidir_presupuesto', {p_id: +id, p_estado: est});
+    toast('Presupuesto actualizado'); recargar();
+  }));
+  on('[data-pre-borrar]', 'click', e => {
+    const id = +e.currentTarget.dataset.preBorrar;
+    dialogo('<h2>Quitar presupuesto</h2><p>Se borrará de la orden.</p>', 'Quitar', async () => {
+      await rpc('borrar_presupuesto', {p_id: id}); toast('Presupuesto quitado'); recargar();
+    }, 'peligro');
+  });
+  on('[data-pre-aceptar]', 'click', async e => {
+    const pre = o.presupuestos.find(x => x.id === +e.currentTarget.dataset.preAceptar);
+    const obra = (pre.lineas || []).filter(l => l.tipo === 'obra');
+    const mecs = (await DB.mecanicos().catch(() => [])).filter(m => m.activo);
+    const yaHay = o.tareas.length;
+    dialogo(`<h2>Aceptar el presupuesto nº ${pre.numero}</h2>
+      <p>Queda aceptado por <strong>${eur(pre.total)}</strong> y se saca el <strong>número de reparación</strong>.</p>
+      ${obra.length && !yaHay ? `
+        <label class="chk" style="margin-top:10px"><input type="checkbox" id="pa-tareas" checked>
+          Pasar las ${obra.length} línea${obra.length > 1 ? 's' : ''} de mano de obra a reparaciones</label>
+        <div class="suave">${obra.map(l => `${esc(l.concepto)} (${l.cantidad} min)`).join(', ')}</div>
+        <fieldset style="margin-top:10px"><legend>Se las asigno a</legend>
+          ${mecs.map(m => `<label class="chk"><input type="checkbox" class="pa-mec" value="${m.id}"> ${esc(m.nombre)}</label>`).join('')
+            || 'Crea antes un mecánico.'}</fieldset>` : ''}
+      ${yaHay ? '<p class="suave">La orden ya tiene reparaciones, así que no se añaden más.</p>' : ''}`,
+      'Aceptar y pasar a reparación', async d => {
+        const crear = d.querySelector('#pa-tareas')?.checked;
+        const quien = [...d.querySelectorAll('.pa-mec:checked')].map(x => x.value);
+        if (crear && !quien.length) throw new Error('Elige a quién se le asignan');
+        const tareas = crear ? obra.map(l => ({titulo: l.concepto, minutos: l.cantidad, mecanicos: quien})) : [];
+        const r = await rpc('crear_reparacion', {p_orden: o.id, p_presupuesto: pre.id,
+          p_tareas: tareas, p_notas: null});
+        toast(`Reparación nº ${r.numero}`); recargar();
+      }, 'ok');
+  });
+}
+
+async function vPresupuesto(ordenId, preId){
+  marcar('ordenes'); st.refresh = null;
+  const [o, exp, firmas] = await Promise.all([DB.orden(ordenId), rpc('documentos_orden', {p_orden: ordenId}),
+    rpc('firmas_orden', {p_orden: ordenId}).catch(() => [])]);
+  const fPre = firmas.find(f => f.tipo === 'presupuesto');
+  const pre = (exp.presupuestos || []).find(x => x.id === preId);
+  if (!pre){ toast('Presupuesto no encontrado', true); return vOrden(ordenId); }
+  const cl = exp.cliente;
+  const caduca = new Date(Date.parse(pre.creado) + pre.validez_dias * 86400000);
+  app(`<div class="fila cab no-print">
+      <button class="lnk" id="volver">Volver a la orden</button>
+      <button class="btn pri" id="imprimir">Imprimir o guardar en PDF</button>
+    </div>
+    <div class="panel informe">
+      <header class="inf-cab">
+        <div>${TALLER?.logo ? `<img class="inf-logo" src="${esc(TALLER.logo)}" alt="">` : `<h2>${esc(TALLER?.nombre || '')}</h2>`}</div>
+        <div class="derecha suave">
+          ${TALLER?.logo ? `<div><strong>${esc(TALLER.nombre || '')}</strong></div>` : ''}
+          ${TALLER?.direccion ? `<div>${esc(TALLER.direccion)}</div>` : ''}
+          ${TALLER?.telefono ? `<div>Tel. ${esc(TALLER.telefono)}</div>` : ''}
+          ${TALLER?.cif ? `<div>CIF ${esc(TALLER.cif)}</div>` : ''}
+        </div>
+      </header>
+      <h1>Presupuesto nº ${pre.numero}</h1>
+      <p class="suave">Orden nº ${exp.orden?.numero ?? ordenId} · ${fmtFecha(ts(pre.creado))} · Válido hasta el ${caduca.toLocaleDateString('es-ES')}</p>
+      <div class="inf-coche">
+        <div>
+          <h2 style="border:0;margin:0">${esc(o.coche.marca)} ${esc(o.coche.modelo)}</h2>
+          <p class="suave">${datosCoche(o.coche)}${o.coche.vin ? `<br>Bastidor: ${esc(o.coche.vin)}` : ''}</p>
+        </div>
+        <div class="fila">${pegatina(distintivoDe(o.coche))}${placa(o.coche.matricula)}</div>
+      </div>
+      ${cl ? `<h2>Cliente</h2><p>${esc(cl.nombre)}${cl.dni ? ` · ${esc(cl.dni)}` : ''}
+        ${cl.direccion ? `<br>${esc(cl.direccion)}` : ''}${zona(cl) ? `<br>${esc(zona(cl))}` : ''}
+        ${cl.telefono ? `<br>Tel. ${esc(cl.telefono)}` : ''}</p>` : ''}
+      <h2>Detalle</h2>
+      <table><thead><tr><th>Concepto</th><th>Referencia</th><th>Cantidad</th><th>Precio</th><th>Importe</th></tr></thead>
+        <tbody>${(pre.lineas || []).map(l => `<tr><td>${esc(l.concepto)}</td><td>${esc(l.referencia || '')}</td>
+          <td>${l.tipo === 'obra' ? `${l.cantidad} min` : l.cantidad}</td>
+          <td>${eur(l.precio)}${l.tipo === 'obra' ? '/h' : ''}</td><td>${eur(l.importe)}</td></tr>`).join('')}</tbody></table>
+      <h2>Importe</h2>
+      <table class="importes"><tbody>
+        <tr><td>Mano de obra</td><td class="derecha">${eur(pre.importe_obra)}</td></tr>
+        <tr><td>Piezas y materiales</td><td class="derecha">${eur(pre.importe_piezas)}</td></tr>
+        <tr><td>Base imponible</td><td class="derecha">${eur(pre.base)}</td></tr>
+        <tr><td>IVA ${TALLER?.iva ?? 21}%</td><td class="derecha">${eur(pre.iva)}</td></tr>
+        <tr class="total"><td>Total</td><td class="derecha">${eur(pre.total)}</td></tr>
+      </tbody></table>
+      ${pre.notas ? `<p>${esc(pre.notas)}</p>` : ''}
+      <p class="suave">Este presupuesto no incluye trabajos que no figuren en el detalle. Cualquier añadido se comunicará antes de hacerlo.</p>
+      <div class="firmas"><div>Taller<span></span></div>
+        <div>Conforme el cliente${fPre ? `<span class="firmada"><img src="${esc(fPre.imagen)}" alt="Firma del cliente"></span>
+          <small>${esc(fPre.firmante || '')}${fPre.dni ? `, ${esc(fPre.dni)}` : ''} · ${fmtFecha(ts(fPre.creado))}</small>` : '<span></span>'}</div></div>
+    </div>`);
+  $('#volver').onclick = () => vOrden(ordenId);
+  $('#imprimir').onclick = () => window.print();
+}
+
+/* ═════════ firmas del cliente ═════════ */
+const TIPO_FIRMA = {recepcion: 'Entrada del coche', presupuesto: 'Conforme con el presupuesto', entrega: 'Entrega del coche'};
+function panelFirmas(o, firmas){
+  const abierta = o.estado === 'abierta';
+  const dame = t => firmas.find(f => f.tipo === t);
+  return `<div class="panel" id="firmas">
+    <h2>Firmas del cliente</h2>
+    <div class="firmas-caja">${Object.entries(TIPO_FIRMA).map(([t, nom]) => {
+      const f = dame(t);
+      return `<div class="firma-hueco${f ? ' hecha' : ''}">
+        <div class="suave">${nom}</div>
+        ${f ? `<img src="${esc(f.imagen)}" alt="Firma">
+          <div class="suave">${esc(f.firmante || '')}${f.dni ? `, ${esc(f.dni)}` : ''}<br>${fmtFecha(ts(f.creado))}</div>
+          ${abierta ? `<button class="btn sec mini-btn" data-firmar="${t}">Repetir</button>` : ''}`
+        : abierta ? `<button class="btn sec" data-firmar="${t}">Recoger firma</button>` : '<div class="suave">Sin firmar</div>'}
+      </div>`;
+    }).join('')}</div>
+  </div>`;
+}
+function activarFirmas(o, recargar){
+  on('[data-firmar]', 'click', e => {
+    const tipo = e.currentTarget.dataset.firmar;
+    const nom = o.cliente?.nombre || '';
+    dialogo(`<h2>${esc(TIPO_FIRMA[tipo])}</h2>
+      <p class="suave">Que firme el cliente con el dedo o el ratón.</p>
+      <div class="lienzo-firma"><canvas id="fm-canvas" width="900" height="320"></canvas>
+        <span class="linea-firma"></span></div>
+      <div class="fila" style="margin-top:8px"><button type="button" class="btn sec mini-btn" id="fm-limpiar">Borrar y repetir</button></div>
+      <div class="grid" style="margin-top:10px">
+        <label>Nombre de quien firma<input id="fm-nom" value="${esc(nom)}"></label>
+        <label>DNI<input id="fm-dni" value="${esc(o.cliente?.dni || '')}"></label>
+      </div>`, 'Guardar firma', async d => {
+        const c = d.querySelector('#fm-canvas');
+        if (!c.dataset.pintado) throw new Error('El cliente todavía no ha firmado');
+        await rpc('guardar_firma', {p_orden: o.id, p_tipo: tipo, p_imagen: recortaFirma(c),
+          p_firmante: d.querySelector('#fm-nom').value, p_dni: d.querySelector('#fm-dni').value});
+        toast('Firma guardada'); recargar();
+      }, 'pri', {alAbrir: d => {
+        const c = d.querySelector('#fm-canvas'), ctx = c.getContext('2d');
+        ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1B2733';
+        let pintando = false;
+        const punto = ev => {
+          const r = c.getBoundingClientRect();
+          return [(ev.clientX - r.left) * (c.width / r.width), (ev.clientY - r.top) * (c.height / r.height)];
+        };
+        c.addEventListener('pointerdown', ev => {
+          pintando = true; c.setPointerCapture(ev.pointerId);
+          const [x, y] = punto(ev); ctx.beginPath(); ctx.moveTo(x, y);
+          c.dataset.pintado = '1';
+        });
+        c.addEventListener('pointermove', ev => {
+          if (!pintando) return;
+          const [x, y] = punto(ev); ctx.lineTo(x, y); ctx.stroke();
+        });
+        const soltar = () => { pintando = false; };
+        c.addEventListener('pointerup', soltar);
+        c.addEventListener('pointerleave', soltar);
+        d.querySelector('#fm-limpiar').onclick = () => {
+          ctx.clearRect(0, 0, c.width, c.height); delete c.dataset.pintado;
+        };
+      }});
+  });
+}
+// deja solo la parte firmada, para que no pese de más
+function recortaFirma(c){
+  const ctx = c.getContext('2d'), d = ctx.getImageData(0, 0, c.width, c.height).data;
+  let x0 = c.width, y0 = c.height, x1 = 0, y1 = 0;
+  for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++){
+    if (d[(y * c.width + x) * 4 + 3] > 10){
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+  }
+  if (x1 <= x0 || y1 <= y0) return c.toDataURL('image/png');
+  const m = 8;
+  x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m);
+  x1 = Math.min(c.width, x1 + m); y1 = Math.min(c.height, y1 + m);
+  const out = document.createElement('canvas');
+  out.width = x1 - x0; out.height = y1 - y0;
+  out.getContext('2d').drawImage(c, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  return out.toDataURL('image/png');
+}
+
+/* ═════════ ADMIN: seguimiento (ITV y coches parados) ═════════ */
+async function vSeguimiento(){
+  marcar('seguimiento'); st.refresh = null;
+  const dias = st.diasParado || 5;
+  const [itv, parados] = await Promise.all([
+    rpc('itv_proximas', {p_dias: 60}).catch(() => []),
+    rpc('coches_parados', {p_dias: dias}).catch(() => [])]);
+  const caducadas = itv.filter(x => x.dias < 0);
+  const tel = t => t ? `<a href="tel:${esc(t.replace(/\s/g, ''))}">${esc(t)}</a>` : '<span class="suave">sin teléfono</span>';
+  app(`<h1>Seguimiento</h1>
+    <div class="panel">
+      <div class="fila entre"><h2 style="margin:0">ITV que vencen</h2>
+        <span class="suave">${itv.length ? `${itv.length} coche${itv.length > 1 ? 's' : ''}${caducadas.length ? `, ${caducadas.length} ya caducada${caducadas.length > 1 ? 's' : ''}` : ''}` : ''}</span></div>
+      ${itv.length ? `<div class="tabla"><table>
+        <thead><tr><th>Coche</th><th>Vence</th><th>Cliente</th><th>Teléfono</th><th></th></tr></thead>
+        <tbody>${itv.map(x => `<tr>
+          <td><strong>${esc(x.matricula)}</strong><div class="suave">${esc(x.marca)} ${esc(x.modelo)}</div></td>
+          <td>${avisoITV({fecha: new Date(x.vence + 'T00:00'), dias: x.dias})}</td>
+          <td>${esc(x.cliente || '—')}</td><td>${tel(x.telefono)}</td>
+          <td class="derecha fila" style="justify-content:flex-end">
+            <button class="btn sec mini-btn" data-ver-coche="${x.id}">Ficha</button>
+            ${x.avisado ? `<span class="suave">avisado ${fmtFecha(ts(x.avisado))}</span>`
+              : `<button class="btn ok mini-btn" data-avisado="${x.id}">Marcar avisado</button>`}
+          </td></tr>`).join('')}</tbody></table></div>`
+        : '<p class="suave" style="margin-top:8px">Ninguna ITV vence en los próximos 60 días. Se calcula con la fecha que tenga cada coche en su ficha.</p>'}
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <div class="fila entre"><h2 style="margin:0">Coches parados</h2>
+        <label class="fila" style="gap:6px">Sin tocar desde hace
+          <select id="sg-dias" style="width:auto">${[2, 3, 5, 7, 14, 30].map(d =>
+            `<option value="${d}" ${d === dias ? 'selected' : ''}>${d} días</option>`).join('')}</select></label></div>
+      ${parados.length ? `<div class="tabla"><table>
+        <thead><tr><th>Coche</th><th>Orden</th><th>Último movimiento</th><th>Pendientes</th><th>Cliente</th><th></th></tr></thead>
+        <tbody>${parados.map(x => {
+          const d = Math.round((srvAhora() - ts(x.ultimo)) / 86400);
+          return `<tr>
+            <td><strong>${esc(x.matricula)}</strong><div class="suave">${esc(x.marca)} ${esc(x.modelo)}</div></td>
+            <td>${x.numero ? `nº ${x.numero}` : x.orden_id}<div class="suave">${esc(x.tipo_revision)}</div></td>
+            <td class="${d >= 14 ? 'rojo' : ''}">hace ${d} día${d === 1 ? '' : 's'}<div class="suave">${fmtFecha(ts(x.ultimo))}</div></td>
+            <td>${x.pendientes}</td>
+            <td>${esc(x.cliente || '—')}<div class="suave">${x.telefono ? esc(x.telefono) : ''}</div></td>
+            <td class="derecha"><button class="btn sec mini-btn" data-ver-orden="${x.orden_id}">Abrir</button></td></tr>`;
+        }).join('')}</tbody></table></div>`
+        : `<p class="suave" style="margin-top:8px">Ningún coche lleva más de ${dias} días parado.</p>`}
+    </div>`);
+  $('#sg-dias').onchange = e => { st.diasParado = +e.target.value; vSeguimiento(); };
+  on('[data-ver-coche]', 'click', e => vCoche(+e.currentTarget.dataset.verCoche));
+  on('[data-ver-orden]', 'click', e => vOrden(+e.currentTarget.dataset.verOrden));
+  on('[data-avisado]', 'click', accion(async (e, b) => {
+    await rpc('marcar_itv_avisada', {p_coche: +b.dataset.avisado});
+    toast('Marcado como avisado'); vSeguimiento();
+  }));
+  st.refresh = vSeguimiento;
+}
+
+/* ═════════ ADMIN: recepción ═════════ */
+async function vRecepcion(){
+  marcar('recepcion'); st.refresh = null;
+  const [coches, clientes, centros, tipos] = await Promise.all([
+    DB.coches(), DB.clientes().catch(() => []), DB.centros().catch(() => []), DB.trabajosTipo().catch(() => [])]);
+  window.CLIENTES = clientes;
+  const prev = st.recepcionPara || {};
+  st.recepcionPara = null;
+  app(`<h1>Recepción</h1>
+  <div class="dos">
+    <section class="panel">
+      <h2>Cliente</h2>
+      <label>Cliente<select id="r-cliente"><option value="">Cliente nuevo</option>
+        ${clientes.map(c => `<option value="${c.id}" ${prev.cliente_id === c.id ? 'selected' : ''}>${esc(c.nombre)}${c.telefono ? `, ${esc(c.telefono)}` : ''}</option>`).join('')}</select></label>
+      <div id="r-cliente-nuevo" class="pila" style="margin-top:10px">
+        <label>Nombre<input id="rc-nom"></label>
+        <div class="grid" style="margin:0">
+          <label>Teléfono<input id="rc-tel" inputmode="tel"></label>
+          <label>DNI o CIF<input id="rc-dni"></label>
+        </div>
+        <label>Email<input id="rc-email" type="email"></label>
+        <label>Dirección<input id="rc-dir"></label>
+        <div class="grid" style="margin:0">
+          <label>Código postal<input id="rc-cp" inputmode="numeric" maxlength="5"></label>
+          <label>Población<input id="rc-pob"></label>
+          <label>Provincia<input id="rc-prov"></label>
+        </div>
+      </div>
+      <div id="r-cliente-ficha" class="sello" hidden></div>
+    </section>
+    <section class="panel">
+      <h2>Coche</h2>
+      <label>Coche<select id="r-coche"><option value="">Coche nuevo</option>
+        ${coches.map(c => `<option value="${c.id}" ${prev.coche_id === c.id ? 'selected' : ''}>${esc(c.matricula)}, ${esc(c.marca)} ${esc(c.modelo)}</option>`).join('')}</select></label>
+      <div id="r-prev" class="escena" style="margin-top:12px"></div>
+      <div id="r-campos">${camposCoche({})}</div>
+    </section>
+  </div>
+  <section class="panel" style="margin-top:16px">
+    <h2>Entrada</h2>
+    <div class="grid" style="margin-top:0">
+      <label>Motivo de la entrada<input id="r-tipo" list="tipos" placeholder="Revisión, ruido, avería..."></label>
+      ${centros.length ? `<label>Centro<select id="r-centro">${centros.map(c => `<option value="${c.id}">${esc(c.nombre)}</option>`).join('')}</select></label>` : ''}
+    </div>
+    <datalist id="tipos"><option>Mantenimiento</option><option>Revisión oficial</option><option>Pre-ITV</option><option>Reparación</option><option>Diagnóstico</option><option>Neumáticos</option>${tipos.map(t => `<option>${esc(t.nombre)}</option>`).join('')}</datalist>
+    ${(window.PLANTILLAS_CK || []).length ? `<div class="grid" style="margin-top:0">
+      <label>Checklist de entrada<select id="r-cki"><option value="">El de serie</option>
+        ${window.PLANTILLAS_CK.filter(x => x.momento === 'inicial').map(x => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('')}</select></label>
+      <label>Control final<select id="r-ckf"><option value="">El de serie</option>
+        ${window.PLANTILLAS_CK.filter(x => x.momento === 'final').map(x => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('')}</select></label>
+    </div>` : ''}
+    <label>Lo que cuenta el cliente<textarea id="r-notas" rows="3" placeholder="Suena al girar a la izquierda, desde hace una semana"></textarea></label>
+    <div class="fila" style="margin-top:12px">
+      <button class="btn pri" id="r-dar">Dar entrada y sacar número de orden</button>
+    </div>
+  </section>`);
+  const campos = $('#r-campos'), prevCoche = $('#r-prev');
+  enlazarPreview(campos, prevCoche);
+  // el cliente ya se elige arriba, así que aquí sobra
+  campos.querySelector('[name=cliente_id]')?.closest('label')?.remove();
+  campos.querySelector('[data-cli-nuevo]')?.remove();
+  const pintaCliente = () => {
+    const c = clientes.find(x => x.id === +$('#r-cliente').value);
+    $('#r-cliente-nuevo').hidden = !!c;
+    $('#r-cliente-ficha').hidden = !c;
+    if (c) $('#r-cliente-ficha').innerHTML = `<div><strong>${esc(c.nombre)}</strong></div>
+      ${c.telefono ? `<div>${esc(c.telefono)}</div>` : ''}${c.email ? `<div>${esc(c.email)}</div>` : ''}
+      ${c.direccion ? `<div>${esc(c.direccion)}${zona(c) ? ', ' + esc(zona(c)) : ''}</div>` : ''}
+      ${c.dni ? `<div class="suave">${esc(c.dni)}</div>` : ''}`;
+  };
+  $('#r-cliente').onchange = pintaCliente; pintaCliente();
+  const pintaCoche = () => {
+    const c = coches.find(x => x.id === +$('#r-coche').value);
+    campos.hidden = !!c;
+    if (c){
+      prevCoche.innerHTML = cocheSVG(c) + `<div class="fila entre" style="padding:6px 0 10px"><strong>${esc(c.marca)} ${esc(c.modelo)}</strong>${placa(c.matricula)}</div>`;
+      // si el coche ya tiene cliente y no se ha elegido otro, se pone el suyo
+      if (c.cliente_id && !$('#r-cliente').value){ $('#r-cliente').value = String(c.cliente_id); pintaCliente(); }
+    } else campos.dispatchEvent(new Event('input'));
+  };
+  $('#r-coche').onchange = pintaCoche; pintaCoche();
+  $('#r-dar').onclick = accion(async () => {
+    const body = {tipo_revision: $('#r-tipo').value.trim(), notas: $('#r-notas').value,
+      centro_id: $('#r-centro')?.value || null, ck_inicial_id: $('#r-cki')?.value || null,
+      ck_final_id: $('#r-ckf')?.value || null};
+    if (!body.tipo_revision) throw new Error('Indica el motivo de la entrada');
+    const cid = +$('#r-cliente').value;
+    if (cid) body.cliente_id = String(cid);
+    else {
+      const g = id => $(id).value.trim();
+      if (g('#rc-nom')) body.cliente = {nombre: g('#rc-nom'), telefono: g('#rc-tel'), email: g('#rc-email'),
+        dni: g('#rc-dni'), direccion: g('#rc-dir'), cp: g('#rc-cp'), poblacion: g('#rc-pob'), provincia: g('#rc-prov')};
+    }
+    const coid = +$('#r-coche').value;
+    if (coid) body.coche_id = String(coid);
+    else body.coche = leerCoche(campos);
+    const r = await rpc('crear_recepcion', {p: body});
+    toast(`Entrada dada. Orden nº ${r.numero}`);
+    vOrden(r.orden_id);
+  });
 }
 
 /* ═════════ ADMIN: citas ═════════ */
